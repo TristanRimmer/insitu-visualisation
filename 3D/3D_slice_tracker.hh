@@ -121,9 +121,10 @@ template <typename T, std::uint8_t Axis> class CustomIterator {
 public:
   CustomIterator(std::shared_ptr<T> data, std::array<std::size_t, 3> dimensions,
                  std::size_t slice_index, std::size_t local_x_start,
-                 std::size_t local_y_start)
+                 std::size_t local_y_start, std::size_t degrees_of_freedom = 1)
       : data(data), dimensions(dimensions), slice_index(slice_index),
-        local_x(local_x_start), local_y(local_y_start) {};
+        local_x(local_x_start), local_y(local_y_start),
+        degrees_of_freedom(degrees_of_freedom) {};
 
   auto operator++() -> CustomIterator<T, Axis> & {
     // the Y index is never the local x
@@ -164,20 +165,21 @@ private:
       // The Local Y will indicate the real Y component -> The correct line in
       //                                                   the plane
       // X is fixed -> Slice index gets correct point
-      return (local_x * (dimensions[0] * dimensions[1])) +
-             (local_y * dimensions[0]) + slice_index;
+      return degrees_of_freedom * ((local_x * (dimensions[0] * dimensions[1])) +
+                                   (local_y * dimensions[0]) + slice_index);
     } else if constexpr (Axis == 1) {
       // The Local Y will indicate the real Z component -> The correct plane
       // Y is fixed -> Slice index gets the correct line in the plane
       // The Local X will indicate the real X component -> the correct point
-      return (local_y * (dimensions[0] * dimensions[1])) +
-             (slice_index * dimensions[0]) + local_x;
+      return degrees_of_freedom * ((local_y * (dimensions[0] * dimensions[1])) +
+                                   (slice_index * dimensions[0]) + local_x);
     } else if constexpr (Axis == 2) {
       // The Local X will indicate the X component -> The point on line
       // The Local Y will indicate the Y component -> The line in the plane
       // Z is fixed -> Slice Index gets you to the correct plane
-      return (slice_index * (dimensions[0] * dimensions[1])) +
-             (local_y * dimensions[0]) + local_x;
+      return degrees_of_freedom *
+             ((slice_index * (dimensions[0] * dimensions[1])) +
+              (local_y * dimensions[0]) + local_x);
     }
   }
 
@@ -187,6 +189,8 @@ private:
   // Local referring to the plane in which it is being sliced
   std::size_t local_x;
   std::size_t local_y;
+  // These types have 'degrees of freedom'. For EG, a BMP's dofs is 4 (RGBA)
+  std::size_t degrees_of_freedom;
 };
 
 /*

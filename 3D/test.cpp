@@ -17,9 +17,13 @@ int main() {
   auto rand_distribution = std::uniform_int_distribution<std::size_t>(50, 1500);
 
   std::vector<double> data;
-  std::array<std::size_t, 3> dims = {rand_distribution(rand_gen),
-                                     rand_distribution(rand_gen),
-                                     rand_distribution(rand_gen)};
+  std::array<std::size_t, 3> dims = {100, 100, 100};
+  // {rand_distribution(rand_gen),
+  //  rand_distribution(rand_gen),
+  //  rand_distribution(rand_gen)};
+  std::array<std::size_t, 3> chosen_slices = {50, 0, 0};
+  // {dims[0] - 1, dims[1] - 1,
+  //                                             dims[2] - 1};
 
   for (int z = dims[2]; z > 0; z--) {
     for (int y = 0; y < dims[1]; y++) {
@@ -31,11 +35,12 @@ int main() {
 
   auto data_alloc_end = std::chrono::steady_clock::now();
 
-  auto tracker_x =
-      Insitu::SliceTracker3D<double, 0>(dims, dims[0] - 1, "x_slice", 1, 1);
-  auto tracker_y =
-      Insitu::SliceTracker3D<double, 1>(dims, dims[1] - 1, "y_slice", 1, 1);
-  auto tracker_z = Insitu::SliceTracker3D<double, 2>(dims, 0, "z_slice", 1, 1);
+  auto tracker_x = Insitu::SliceTracker3D<double, 0>(dims, chosen_slices[0],
+                                                     "x_slice", 1, 1);
+  auto tracker_y = Insitu::SliceTracker3D<double, 1>(dims, chosen_slices[1],
+                                                     "y_slice", 1, 1);
+  auto tracker_z = Insitu::SliceTracker3D<double, 2>(dims, chosen_slices[2],
+                                                     "z_slice", 1, 1);
   auto colour_range =
       Colours::ColourRange<double>(0.0, dims[0] * dims[1] * dims[2]);
 
@@ -55,22 +60,24 @@ int main() {
   constexpr auto CUBOID_RENDER_IMAGE_SIZE =
       std::pair<std::size_t, std::size_t>{1500, 1500};
   constexpr auto PERSPECTIVE = RasteriserComponents::CameraPerspective{
-      RasteriserComponents::CameraPerspectiveX::RIGHT,
-      RasteriserComponents::CameraPerspectiveY::UP,
+      RasteriserComponents::CameraPerspectiveX::LEFT,
+      RasteriserComponents::CameraPerspectiveY::DOWN,
       RasteriserComponents::CameraPerspectiveZ::BACK};
 
   auto faces = std::array<Renderer::Face<double>, 3>{
-      Renderer::get_faces_of_cuboid<double>(dims, PERSPECTIVE)};
+      Renderer::get_faces_of_cuboid<double>(dims, chosen_slices, PERSPECTIVE)};
+  auto full_faces = Renderer::get_full_dims_as_faces<double>(dims, PERSPECTIVE);
 
   auto camera = Renderer::get_position_camera<double>(dims, PERSPECTIVE);
 
   auto cuboid_pixel_buffer = Renderer::get_pixel_buffer(
       {CUBOID_RENDER_IMAGE_SIZE.first, CUBOID_RENDER_IMAGE_SIZE.second}, camera,
-      faces,
+      faces, full_faces,
       {std::get<0>(z_image_and_z_dims), std::get<0>(x_image_and_x_dims),
        std::get<0>(y_image_and_y_dims)},
       {std::get<1>(z_image_and_z_dims), std::get<1>(x_image_and_x_dims),
-       std::get<1>(y_image_and_y_dims)});
+       std::get<1>(y_image_and_y_dims)},
+      std::pair{chosen_slices, dims}, PERSPECTIVE);
 
   Writer::write_bmp("3d_render.bmp", cuboid_pixel_buffer,
                     CUBOID_RENDER_IMAGE_SIZE.first,
