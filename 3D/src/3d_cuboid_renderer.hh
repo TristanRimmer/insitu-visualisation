@@ -8,89 +8,6 @@
 #include <ostream>
 #include <vector>
 
-/**
- * TODO:
- * In the work flow, the user passes an X, Y, Z target axis.
- *
- * Lets call these:
- *  X_c and X_m (x chosen and X max)
- *  Y_c and Y_m (y chosen and y max)
- *  Z_c and Z_m (z chosen and z max)
- *
- *  Currently, no matter the chosen *_c, the visualisation will show the full
- * planes as *_m
- *
- * This creates unrealistic outputs:
- *
- * EG: The chosen X slice was half way through, the chosen Y slice was half
- * way, and the chosen z slice was the furthest.
- *
- * the output image would not have the edges line up correctly
- *
- * SOLUTION:
- *
- * The barycentric coordinates have a range (0-1) which is then altered by
- * whichever axis it depends on
- *
- * the X slice (X axis is fixed, therefore its the ZY plane) would need:
- * - X bary (z axis)'s lower range to be affected by the XY plane -> Z_c
- * - Y bary (y axis)'s upper range to be affected by the XZ plane -> Y_m - Y_c
- *
- * the Y slice (y axis is fixed, XZ plane) depends on:
- * - X bary (X axis)'s upper range to be affected by the ZY plane -> X_m - X_c
- * - Y bary (Z axis)'s lower range to be affected by the XY plane -> just the
- *   number
- *
- * The Z slice (z is fixed, XY plane) depends on:
- * - X bary (X axis)'s upper range to be affected by the ZY plane -> just the
- *   number
- * - Y bary (Y axis)'s upper range to be affected by the XZ plane -> Y_m - Y_c
- *
- *
- * It is important that this doesnt affect the range before barycentrics, and
- * instead after.
- *
- * Eg/ one who's lower portion has been decreased by 35% should have a range
- * of 0.35 to 1 Or one who's upper portion hasbeen decreased by 25% should
- * have a range of 0 to 0.75
- */
-
-constexpr auto correct_barycentric_scale(
-    int face_index, double &face_a_lower, double &face_a_mod,
-    double &face_b_lower, double &face_b_mod,
-    std::pair<std::array<std::size_t, 3>, std::array<std::size_t, 3>>
-        chosen_and_full_dims) -> void {
-  double original_face_a = face_a_mod;
-  double original_face_b = face_b_mod;
-
-  auto chosens = chosen_and_full_dims.first;
-  auto fulls = chosen_and_full_dims.second;
-
-  auto scale_x = chosens[0] / fulls[0];
-  auto scale_y = chosens[1] / fulls[1];
-  auto scale_z = chosens[2] / fulls[2];
-
-  if (face_index == 0) {
-    // XY plane
-    face_a_lower = (original_face_a * scale_z);
-    face_a_mod = face_a_mod;
-    face_b_lower = 0;
-    face_b_mod = original_face_b - (original_face_b * (scale_y));
-  } else if (face_index == 1) {
-    // ZY plane
-    face_a_lower = original_face_a * scale_z;
-    face_a_mod = original_face_a - (original_face_a * (scale_x));
-    face_b_lower = original_face_b * scale_y;
-    face_b_mod = face_b_mod;
-  } else {
-    // XZ plane
-    face_a_lower = 0;
-    face_a_mod = original_face_a - (original_face_a * scale_x);
-    face_b_lower = 0;
-    face_b_mod = original_face_b - (original_face_b * scale_z);
-  }
-}
-
 namespace Vector3D {
 //==// Vec3 Utility
 template <typename T> using Vec3 = std::array<T, 3>;
@@ -378,9 +295,7 @@ auto get_position_camera(const std::array<std::size_t, 3> &dims,
 template <typename T>
 auto get_pixel_buffer(
     std::pair<std::size_t, std::size_t> image_dimensions, Camera<T> camera,
-    std::array<Face<T>, 3> faces, // TODO: swap for 3 individual faces with
-                                  // names and the array is built in function
-    std::array<Face<T>, 3> full_faces,
+    std::array<Face<T>, 3> faces, std::array<Face<T>, 3> full_faces,
     const std::array<std::vector<std::uint8_t>, 3> &image_buffers,
     const std::array<std::pair<std::size_t, std::size_t>, 3> &image_buffer_dims,
     std::pair<std::array<std::size_t, 3>, std::array<std::size_t, 3>>
@@ -513,11 +428,6 @@ auto get_pixel_buffer(
         auto face_b_lower_bound = 0.0;
         auto face_a_mod = Vector3D::mod(face.a);
         auto face_b_mod = Vector3D::mod(face.b);
-
-        // // Updates the above as refs
-        // correct_barycentric_scale(face_i, face_a_lower_bound, face_a_mod,
-        //                           face_b_lower_bound, face_b_mod,
-        //                           chosen_and_full_dims);
 
         // How much of the local position vector is made up by face.a and
         // face.b
