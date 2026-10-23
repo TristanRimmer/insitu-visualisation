@@ -236,6 +236,27 @@ public:
                                    end_coord.first, end_coord.second);
   }
 
+  auto get_row(std::size_t slice_y, std::size_t slice)
+      -> std::pair<CustomIterator<T, Axis>, CustomIterator<T, Axis>> {
+    auto row_width = 0;
+    if constexpr (Axis == 0) {
+      row_width = block_size[0];
+    } else if constexpr (Axis == 1) {
+      row_width = block_size[2];
+    } else if constexpr (Axis == 2) {
+      row_width = block_size[0];
+    }
+    // 500|500|500 -> 500, 499,0
+    std::cout << block_size[0] << "|" << block_size[1] << "|" << block_size[2]
+              << " -> " << row_width << ", " << slice << "," << slice_y
+              << std::endl;
+
+    return std::pair{
+        CustomIterator<T, Axis>(flattened_data, block_size, slice, 0, slice_y),
+        CustomIterator<T, Axis>(flattened_data, block_size, slice, 0,
+                                slice_y + 1)};
+  }
+
   auto get_slice_dims() const -> std::pair<std::size_t, std::size_t> {
     if constexpr (Axis == 0) {
       return {block_size[2], block_size[1]};
@@ -274,6 +295,13 @@ public:
                       const Colours::ColourRange<T> &colour_range)
       -> std::optional<std::tuple<std::vector<std::uint8_t>,
                                   std::pair<std::size_t, std::size_t>>>;
+
+  auto get_2d_slice_iterator(T *flattened_data)
+      -> DomainSliceAccessor3D<T, Axis> {
+    auto shared_data = std::shared_ptr<T>(flattened_data, [](T *) {});
+
+    return DomainSliceAccessor3D<T, Axis>(block_size, shared_data, slice);
+  }
 
 private:
   std::array<std::size_t, 3> block_size;

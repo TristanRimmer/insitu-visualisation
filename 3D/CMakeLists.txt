@@ -5,13 +5,14 @@ project(InsituVisualisationWithMPI LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(MPI REQUIRED COMPONENTS CXX)
+find_package(MPI COMPONENTS CXX)
 
 
 add_executable(InsituVisualisationWithMPI
     src/main.cpp
     src/bmp.cc
     src/mpi.cc
+    src/implementation.cc
 )
 
 target_include_directories(InsituVisualisationWithMPI

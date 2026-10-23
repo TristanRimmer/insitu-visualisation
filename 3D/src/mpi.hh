@@ -18,8 +18,8 @@ namespace MpiUtils {
 template <typename T> struct PerRankDetails {
   // The ops_dat definitely contains these
   std::vector<T> data;
-  std::array<int, 3> size;
-  std::array<int, 3> displs;
+  std::array<std::size_t, 3> size;
+  std::array<std::size_t, 3> displs;
   // // A rank may have duplicate data
   // std::array<int, 6> halos;
 
@@ -38,7 +38,7 @@ auto distribute_data_across_ranks(int rank, int num_ranks,
 
 auto get_range_from_rank(int rank, std::array<std::size_t, 3> axis_decomp,
                          std::array<std::size_t, 3> dimensions)
-    -> std::array<int, 6>;
+    -> std::array<std::size_t, 6>;
 
 } // namespace MpiUtils
 

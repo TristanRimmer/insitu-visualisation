@@ -46,19 +46,12 @@ auto MpiUtils::get_nslices_per_axis(int num_ranks)
   }
 
   return axis_slices;
-  // Test Validation:
-  // for (int i = 1; i < 100; i++) {
-  //   auto dims = MpiUtils::get_nslices_per_axis(i);
-  //
-  //   std::cout << i << ": " << dims[0] << ", " << dims[1] << ", " << dims[2]
-  //             << std::endl;
-  // }
 }
 
 auto MpiUtils::get_range_from_rank(int rank,
                                    std::array<std::size_t, 3> axis_decomp,
                                    std::array<std::size_t, 3> dimensions)
-    -> std::array<int, 6> {
+    -> std::array<std::size_t, 6> {
   auto index_in_each_axis = std::array<int, 3>{};
 
   std::size_t rank_copy = rank;
@@ -77,7 +70,7 @@ auto MpiUtils::get_range_from_rank(int rank,
   std::size_t dim_y_mod = dimensions[1] % axis_decomp[1];
   std::size_t dim_z_mod = dimensions[2] % axis_decomp[2];
 
-  auto offsets_and_ranges = std::array<int, 6>{};
+  auto offsets_and_ranges = std::array<std::size_t, 6>{};
 
   // Offset/Starting point
   offsets_and_ranges[0] = index_in_each_axis[0] * dim_x_div;
