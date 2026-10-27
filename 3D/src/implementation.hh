@@ -10,6 +10,20 @@
 
 namespace Implementation {
 
+/**
+ * "per_insitu_frame"
+ *
+ * - This function tries to imitate the actions necessary in an OPS codebase to
+ *   create a cuboid rendering of the whole block when using domain
+ *   decomposition with MPI.
+ *
+ * - Gets the X/Y/Z Slice onto root rank via 3 calls of
+ *   "communicate_slice_to_master_rank"
+ *
+ * - Gathers additional data about the slice and the preferred perspective setup
+ *
+ * - Renders the cuboid as one image
+ */
 auto per_insitu_frame(int simulation_iter, double *raw_data,
                       const std::array<std::size_t, 3> &slice_indexes,
                       const std::array<std::size_t, 3> &local_block_size,
@@ -20,6 +34,22 @@ auto per_insitu_frame(int simulation_iter, double *raw_data,
                       Insitu::SliceTracker3D<double, 1> &y_tracker,
                       Insitu::SliceTracker3D<double, 2> &z_tracker) -> void;
 
+/**
+ *
+ * "communicate_slice_to_master_rank"
+ *
+ * - The transfering of the full slice data to the master rank is done on a
+ *   row-by-row basis due to the contiguous memory contraints that MPI_Gatherv
+ *   has
+ *
+ * - An initial AllGatherv is done so every rank can figure out how many
+ *   Gatherv calls the master rank is expecting
+ *
+ * - Then, per row, it calculates if it has any more data to contribute, and:
+ *   - Sends to the root how many items it is contributing this row
+ *   - Sends the displacement of this ranks data
+ *   - With the above info, the row of data
+ */
 template <std::uint8_t Axis>
 auto communicate_slice_to_master_rank(
     DomainSliceAccessor3D<double, Axis> &accessor,
@@ -29,9 +59,18 @@ auto communicate_slice_to_master_rank(
     const std::array<std::size_t, 3> &full_block_size, int rank, int num_ranks)
     -> std::vector<double>;
 
-auto calculate_local_slice_index(std::size_t gbl_slice,
-                                 std::size_t local_axis_size) -> std::size_t;
-
+/**
+ * "convert_sliced_data_to_mesh"
+ *
+ * - Given the raw slice data, this function:
+ *
+ * - Scales the data by a decimal multiplier if the data is too big/small
+ *
+ * - Writes a "reconstructed_slice_*.bmp" file to demonstrate what the full,
+ *   rebuilt slice looks like
+ *
+ * - Returns the data in the format which the `3d_cuboid_renderer` API expects
+ */
 auto convert_sliced_data_to_mesh(
     const std::vector<double> &data,
     const std::pair<std::size_t, std::size_t> slice_dims,
@@ -45,31 +84,6 @@ auto print_rank_data(const std::array<std::size_t, 3> &slice_indexes,
                      const std::array<std::size_t, 3> &displacement,
                      const std::array<std::size_t, 3> &full_block_size,
                      int rank, int num_ranks, int target_rank) -> void;
-/**
- * Before anything happens:
- * - Every rank needs to know how many times a row broadcast needs to happen
- * - This is done via a Gatherv to rank 0 of the number of rows followed by a
- * broadcast of the max of these values
- * - Each rank is then responsible for correctly swapping to 0 passed parameters
- * at the correct point.
- * - Therefore, recvcounts needs to be updated correctly
- *
- * PSUEDOCODE(ISH):
- *
- * First: MPI_Allgatherv(Num Rows to Broadcast) - Each rank calculates the max
- *
- * for (row = 0; row < max_rows_to_be_sent; row++) {
- *    MPI_Gatherv(to rank 0, send counts for each rank)
- *    (rank 0 preps recvcounts)
- *    MPI_Gatherv(to rank 0, displs)
- *    (rank 0 preps displs)
- *    MPI_Gatherv(to rank 0, the row)
- *
- *    Ranks which are not sending data/have sent all data send 0 data to displ 0
- *
- *    Ranks which do not lie inside of the slice index just send 0 every time
- * }
- */
 
 } // namespace Implementation
 
@@ -82,110 +96,74 @@ auto Implementation::communicate_slice_to_master_rank(
     const std::array<std::size_t, 3> &full_block_size, int rank, int num_ranks)
     -> std::vector<double> {
   static_assert(Axis == 0 || Axis == 1 || Axis == 2);
-  auto slice_dimensions = std::pair{accessor.get_slice_dims()};
 
+  // Some reusable components for gathers where each rank sends 1 item to index
+  // [rank]
+  auto slice_dimensions = std::pair{accessor.get_slice_dims()};
   const auto ranks_sends_one_item = std::vector<int>(num_ranks, 1);
   auto ranks_send_to_itself_index = std::vector<int>(num_ranks, 0);
   for (int r_i = 0; r_i < num_ranks; r_i++)
     ranks_send_to_itself_index[r_i] = r_i;
-
   auto row_counts_from_all_ranks = std::vector<int>(num_ranks, 0);
+
   const auto local_row_count = static_cast<int>(slice_dimensions.second);
 
-  // All ranks now know the max amount of row bcasts to do
+  // All ranks now know the max amount of row gathers to do
   MPI_Allgatherv(&local_row_count, 1, MPI_INT, row_counts_from_all_ranks.data(),
                  ranks_sends_one_item.data(), ranks_send_to_itself_index.data(),
                  MPI_INT, MPI_COMM_WORLD);
 
-  int NUMBER_OF_ROW_BROADCASTS = 0;
+  int number_of_row_gathers = 0;
   for (auto num_rows : row_counts_from_all_ranks)
-    NUMBER_OF_ROW_BROADCASTS = num_rows > NUMBER_OF_ROW_BROADCASTS
-                                   ? num_rows
-                                   : NUMBER_OF_ROW_BROADCASTS;
-
-  // auto local_slice_index = Implementation::calculate_local_slice_index(
-  //     slice_indexes[Axis], local_block_size[Axis]);
+    number_of_row_gathers =
+        num_rows > number_of_row_gathers ? num_rows : number_of_row_gathers;
 
   // Check once if the slice index is out of its displacement
-  bool slice_lies_in_my_domain =
+  const bool slice_lies_in_my_domain =
       (displacement[Axis] <= slice_indexes[Axis] &&
        slice_indexes[Axis] < displacement[Axis] + local_block_size[Axis]);
 
-  // std::cout << "[slice_lies_in_my_domain] " << rank << ": "
-  //           << slice_lies_in_my_domain << std::endl;
-
+  // Treat the 'x' and 'y' index/axis internally as the X/Y of the 2D slice, not
+  // referring to the block
   auto x_axis_index = (Axis == 0) ? 2 : 0;
   auto y_axis_index = (Axis == 0 || Axis == 2) ? 1 : 2;
 
-  auto local_full_x_axis = full_block_size[x_axis_index];
-  auto local_full_y_axis = full_block_size[y_axis_index];
-  auto local_displacement_x = displacement[x_axis_index];
-  auto local_displacement_y = displacement[y_axis_index];
+  auto full_slice_x_axis = full_block_size[x_axis_index];
+  auto full_slice_y_axis = full_block_size[y_axis_index];
+  auto slice_displacement_x = displacement[x_axis_index];
+  auto slice_displacement_y = displacement[y_axis_index];
 
   auto receive_buffer = std::vector<double>{};
   auto reusable_recvcounts = std::vector<int>{};
   auto reusable_displs = std::vector<int>{};
 
+  // Only the master rank needs to have the memory capacity for these buffers
   if (rank == 0) {
-    receive_buffer.resize(local_full_x_axis * local_full_y_axis, 0.0);
+    receive_buffer.resize(full_slice_x_axis * full_slice_y_axis, 0.0);
     reusable_recvcounts.resize(num_ranks, 0);
     reusable_displs.resize(num_ranks, 0);
   }
-
-  // if (rank == 0)
-  //   std::cout << "HERE 2" << std::endl;
-
   auto *receive_buffer_ptr = (rank != 0) ? nullptr : receive_buffer.data();
-  auto *reusable_recvcounts_ptr =
-      (rank != 0) ? nullptr : reusable_recvcounts.data();
-  auto *reusable_displs_ptr = (rank != 0) ? nullptr : reusable_displs.data();
+  auto *recvcounts_ptr = (rank != 0) ? nullptr : reusable_recvcounts.data();
+  auto *displs_ptr = (rank != 0) ? nullptr : reusable_displs.data();
 
-  // MPI_Barrier(MPI_COMM_WORLD);
-  //
-  // if (rank == 0)
-  //   std::cout << "HERE 3" << std::endl;
-  //
-  // if (Axis == 0) {
-  //   std::cout << "[PRE-ROW-BCAST-DATA-DUMP] " << rank << ": Local Disp: ["
-  //             << local_displacement_x << ", " << local_displacement_y
-  //             << "], Full: [" << local_full_x_axis << ", " <<
-  //             local_full_y_axis
-  //             << "]" << std::endl;
-  // }
+  // Get the slice in the current block rather than the full block dimensions
+  const auto local_slice_index = slice_indexes[Axis] - displacement[Axis];
 
-  auto local_slice_index = slice_indexes[Axis] - displacement[Axis];
-
-  for (int row_index = 0; row_index < NUMBER_OF_ROW_BROADCASTS; row_index++) {
-    // if (rank == 0)
-    //   std::cout << "[SIZE_OF_RECV_BUFFER] " << receive_buffer.size()
-    //             << std::endl;
-
+  for (int row_index = 0; row_index < number_of_row_gathers; row_index++) {
     int current_displacement = 0;
-
     auto send_buffer = std::vector<double>{};
-
     bool row_index_has_exceeded_num_rows = row_index >= slice_dimensions.second;
 
+    // Only needs to add row data to the send buffer if it contains the global
+    // slice and it still has rows to submit
     if (slice_lies_in_my_domain and not row_index_has_exceeded_num_rows) {
-      // if (rank == 0)
-      //   std::cout << "Calcualting local slice " << row_index << std::endl;
-
-      // if (rank == 0)
-      // std::cout << "Calcualting local slice completed " << row_index
-      //           << std::endl;
-      // local_displacement_y + row_index gets to the right y index on the 2d
-      // slice recbuf. local_displacement_x gets you to the row
-      // WARN: I think this is majorly wrong
       current_displacement =
-          (local_displacement_y + row_index) * local_full_x_axis +
-          local_displacement_x;
+          (slice_displacement_y + row_index) * full_slice_x_axis +
+          slice_displacement_x;
 
-      // if (rank == 1 && Axis == 1)
-      //   std::cout << "FLPFLPFLPFLPFLFP: " << current_displacement << ", "
-      //             << local_slice_index << ": " << row_index << std::endl;
       auto row_begin_and_end = accessor.get_row(row_index, local_slice_index);
-      // if (rank == 1 && Axis == 1)
-      //   std::cout << "Iterating over row items " << row_index << std::endl;
+
       for (auto it = row_begin_and_end.first; it != row_begin_and_end.second;
            ++it) {
         send_buffer.push_back(*it);
@@ -194,37 +172,18 @@ auto Implementation::communicate_slice_to_master_rank(
 
     int size_as_primitive_int = static_cast<int>(send_buffer.size());
 
-    // if (rank == 0)
-    // std::cout << "GATHERS BEGIN ON ROW " << row_index << std::endl;
-
     // Gather the contributions
-    MPI_Gatherv(&size_as_primitive_int, 1, MPI_INT, reusable_recvcounts_ptr,
+    MPI_Gatherv(&size_as_primitive_int, 1, MPI_INT, recvcounts_ptr,
                 ranks_sends_one_item.data(), ranks_send_to_itself_index.data(),
                 MPI_INT, 0, MPI_COMM_WORLD);
     // And the displacements
-    MPI_Gatherv(&current_displacement, 1, MPI_INT, reusable_displs_ptr,
+    MPI_Gatherv(&current_displacement, 1, MPI_INT, displs_ptr,
                 ranks_sends_one_item.data(), ranks_send_to_itself_index.data(),
                 MPI_INT, 0, MPI_COMM_WORLD);
-
-    if (rank == 0) {
-      auto sum = 0;
-
-      std::string recvcounts = "[";
-      std::string displs = "[";
-      for (int i = 0; i < reusable_recvcounts.size(); i++) {
-        recvcounts = recvcounts + std::to_string(reusable_recvcounts[i]) + ", ";
-        displs = displs + std::to_string(reusable_displs[i]) + ", ";
-        sum += reusable_recvcounts[i];
-      }
-      // std::cout << "Recv counts : " + recvcounts << std::endl;
-      // std::cout << "Displs: " + displs << std::endl;
-      // std::cout << sum << "values into " << receive_buffer.size() <<
-      // std::endl;
-    }
-
+    // Buffer
     MPI_Gatherv(send_buffer.data(), size_as_primitive_int, MPI_DOUBLE,
-                receive_buffer_ptr, reusable_recvcounts_ptr,
-                reusable_displs_ptr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+                receive_buffer_ptr, recvcounts_ptr, displs_ptr, MPI_DOUBLE, 0,
+                MPI_COMM_WORLD);
   }
 
   return receive_buffer;

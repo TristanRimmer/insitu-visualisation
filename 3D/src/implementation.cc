@@ -20,40 +20,24 @@ auto Implementation::per_insitu_frame(
       y_tracker.get_2d_slice_iterator(raw_data)};
   auto z_domain_slicer = DomainSliceAccessor3D<double, 2>{
       z_tracker.get_2d_slice_iterator(raw_data)};
-  static auto colour_range = Colours::ColourRange<double>(0.0, 100 * 100 * 100);
+
+  static auto colour_range = Colours::ColourRange<double>(
+      0.0, full_block_size[0] * full_block_size[1] * full_block_size[2]);
 
   Implementation::print_rank_data(slice_indexes, local_block_size, displacement,
                                   full_block_size, rank, num_ranks, 60);
 
-  // std::cerr << rank << ":::::::-> " << displacement[0] << ", "
-  //           << displacement[1] << ", " << displacement[2] << std::endl;
-
-  // if (rank == 0)
-  //   std::cout << "Z_SLICE" << std::endl;
   auto slice_z = Implementation::communicate_slice_to_master_rank(
       z_domain_slicer, slice_indexes, local_block_size, displacement,
       full_block_size, rank, num_ranks);
-
-  // MPI_Barrier(MPI_COMM_WORLD);
-  // if (rank == 0)
-  //   std::cout << "X_SLICE" << std::endl;
   auto slice_x = Implementation::communicate_slice_to_master_rank(
       x_domain_slicer, slice_indexes, local_block_size, displacement,
       full_block_size, rank, num_ranks);
-
-  // MPI_Barrier(MPI_COMM_WORLD);
-  // if (rank == 0)
-  //   std::cout << "Y_SLICE" << std::endl;
   auto slice_y = Implementation::communicate_slice_to_master_rank(
       y_domain_slicer, slice_indexes, local_block_size, displacement,
       full_block_size, rank, num_ranks);
-  // MPI_Barrier(MPI_COMM_WORLD);
-  // if (rank == 0)
-  //   std::cout << "BARRIER" << std::endl;
-  //
-  if (rank == 0) {
-    //   std::cout << "CONVERITNG TO MESH" << std::endl;
 
+  if (rank == 0) {
     auto mesh_x = Implementation::convert_sliced_data_to_mesh(
         slice_x, {full_block_size[2], full_block_size[1]}, 500, colour_range,
         "x");
@@ -96,17 +80,6 @@ auto Implementation::per_insitu_frame(
   }
 }
 
-auto Implementation::calculate_local_slice_index(std::size_t gbl_slice,
-                                                 std::size_t local_axis_size)
-    -> std::size_t {
-  std::size_t cpy_gbl_slice = gbl_slice;
-
-  while (cpy_gbl_slice >= local_axis_size)
-    cpy_gbl_slice = cpy_gbl_slice - local_axis_size;
-
-  return cpy_gbl_slice;
-}
-
 auto Implementation::convert_sliced_data_to_mesh(
     const std::vector<double> &data,
     const std::pair<std::size_t, std::size_t> slice_dims,
@@ -118,13 +91,6 @@ auto Implementation::convert_sliced_data_to_mesh(
   std::size_t pixel_index = 0;
 
   auto image_scaled = Scaler::ImageScaler(slice_dims, 1);
-
-  // if (slice_dims.first * slice_dims.second == data.size()) {
-  //   std::cout << "POOPOO" << std::endl;
-  // } else {
-  //   std::cout << data.size() << " with " << slice_dims.first << "x"
-  //             << slice_dims.second << std::endl;
-  // }
 
   for (auto value : data) {
     auto relevant_colour = colour_range.get_colour(value);

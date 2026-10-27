@@ -4,6 +4,7 @@
 #include <array>
 #include <chrono>
 #include <cstddef>
+#include <random>
 #include <vector>
 
 #include <mpi/mpi.h>
@@ -17,7 +18,17 @@ int main(int argc, char *argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &num_ranks);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  constexpr auto dimensions = std::array<std::size_t, 3>{100, 100, 100};
+  auto dimensions = std::array<std::size_t, 3>{};
+
+  if (rank == 0) {
+    auto rand_device = std::random_device{};
+    auto rand_gen = std::mt19937{rand_device()};
+    auto distribution = std::uniform_int_distribution<std::size_t>(300, 1000);
+    dimensions = {distribution(rand_gen), distribution(rand_gen),
+                  distribution(rand_gen)};
+  }
+
+  MPI_Bcast(dimensions.data(), 3, MPI_INT64_T, 0, MPI_COMM_WORLD);
 
   MpiUtils::PerRankDetails<double> my_details =
       MpiUtils::distribute_data_across_ranks<double>(rank, num_ranks,
