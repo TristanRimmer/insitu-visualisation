@@ -97,21 +97,22 @@ auto Implementation::communicate_slice_to_master_rank(
                                    ? num_rows
                                    : NUMBER_OF_ROW_BROADCASTS;
 
-  std::cout << "[ROW BROADCASTS] " << "Rank " << rank << " believes there are "
-            << NUMBER_OF_ROW_BROADCASTS << " BCasts" << std::endl;
+  // std::cout << "[ROW BROADCASTS] " << "Rank " << rank << " believes there are
+  // "
+  //           << NUMBER_OF_ROW_BROADCASTS << " BCasts" << std::endl;
 
-  MPI_Barrier(MPI_COMM_WORLD);
+  // MPI_Barrier(MPI_COMM_WORLD);
 
-  if (rank == 0)
-    std::cout << "HERE 1" << std::endl;
+  // if (rank == 0)
+  //   std::cout << "HERE 1" << std::endl;
 
   // Check once if the slice index is out of its displacement
   bool slice_lies_in_my_domain =
       (displacement[Axis] <= slice_indexes[Axis] &&
        slice_indexes[Axis] < displacement[Axis] + local_block_size[Axis]);
 
-  std::cout << "[slice_lies_in_my_domain] " << rank << ": "
-            << slice_lies_in_my_domain << std::endl;
+  // std::cout << "[slice_lies_in_my_domain] " << rank << ": "
+  //           << slice_lies_in_my_domain << std::endl;
 
   auto x_axis_index = (Axis == 0) ? 2 : 0;
   auto y_axis_index = (Axis == 0 || Axis == 2) ? 1 : 2;
@@ -131,25 +132,26 @@ auto Implementation::communicate_slice_to_master_rank(
     reusable_displs.resize(num_ranks, 0);
   }
 
-  if (rank == 0)
-    std::cout << "HERE 2" << std::endl;
+  // if (rank == 0)
+  //   std::cout << "HERE 2" << std::endl;
 
   auto *receive_buffer_ptr = (rank != 0) ? nullptr : receive_buffer.data();
   auto *reusable_recvcounts_ptr =
       (rank != 0) ? nullptr : reusable_recvcounts.data();
   auto *reusable_displs_ptr = (rank != 0) ? nullptr : reusable_displs.data();
 
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  if (rank == 0)
-    std::cout << "HERE 3" << std::endl;
-
-  if (Axis == 0) {
-    std::cout << "[PRE-ROW-BCAST-DATA-DUMP] " << rank << ": Local Disp: ["
-              << local_displacement_x << ", " << local_displacement_y
-              << "], Full: [" << local_full_x_axis << ", " << local_full_y_axis
-              << "]" << std::endl;
-  }
+  // MPI_Barrier(MPI_COMM_WORLD);
+  //
+  // if (rank == 0)
+  //   std::cout << "HERE 3" << std::endl;
+  //
+  // if (Axis == 0) {
+  //   std::cout << "[PRE-ROW-BCAST-DATA-DUMP] " << rank << ": Local Disp: ["
+  //             << local_displacement_x << ", " << local_displacement_y
+  //             << "], Full: [" << local_full_x_axis << ", " <<
+  //             local_full_y_axis
+  //             << "]" << std::endl;
+  // }
 
   for (int row_index = 0; row_index < NUMBER_OF_ROW_BROADCASTS; row_index++) {
     // if (rank == 0)

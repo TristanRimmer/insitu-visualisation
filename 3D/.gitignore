@@ -1,2 +1,4 @@
 test
 build/
+3d_render_mpi_style_*
+execution_times_*

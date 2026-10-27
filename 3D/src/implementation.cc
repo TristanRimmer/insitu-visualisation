@@ -22,34 +22,34 @@ auto Implementation::per_insitu_frame(
       z_tracker.get_2d_slice_iterator(raw_data)};
   static auto colour_range = Colours::ColourRange<double>(0.0, 100 * 100 * 100);
 
-  std::cerr << rank << ":::::::-> " << displacement[0] << ", "
-            << displacement[1] << ", " << displacement[2] << std::endl;
+  // std::cerr << rank << ":::::::-> " << displacement[0] << ", "
+  //           << displacement[1] << ", " << displacement[2] << std::endl;
 
-  if (rank == 0)
-    std::cout << "Z_SLICE" << std::endl;
+  // if (rank == 0)
+  //   std::cout << "Z_SLICE" << std::endl;
   auto slice_z = Implementation::communicate_slice_to_master_rank(
       z_domain_slicer, slice_indexes, local_block_size, displacement,
       full_block_size, rank, num_ranks);
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  if (rank == 0)
-    std::cout << "X_SLICE" << std::endl;
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // if (rank == 0)
+  //   std::cout << "X_SLICE" << std::endl;
   auto slice_x = Implementation::communicate_slice_to_master_rank(
       x_domain_slicer, slice_indexes, local_block_size, displacement,
       full_block_size, rank, num_ranks);
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  if (rank == 0)
-    std::cout << "Y_SLICE" << std::endl;
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // if (rank == 0)
+  //   std::cout << "Y_SLICE" << std::endl;
   auto slice_y = Implementation::communicate_slice_to_master_rank(
       y_domain_slicer, slice_indexes, local_block_size, displacement,
       full_block_size, rank, num_ranks);
-  MPI_Barrier(MPI_COMM_WORLD);
-  if (rank == 0)
-    std::cout << "BARRIER" << std::endl;
-
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // if (rank == 0)
+  //   std::cout << "BARRIER" << std::endl;
+  //
   if (rank == 0) {
-    std::cout << "CONVERITNG TO MESH" << std::endl;
+    //   std::cout << "CONVERITNG TO MESH" << std::endl;
 
     auto mesh_x = Implementation::convert_sliced_data_to_mesh(
         slice_x, {full_block_size[2], full_block_size[1]}, 500, colour_range,
@@ -77,7 +77,6 @@ auto Implementation::per_insitu_frame(
     auto camera =
         Renderer::get_position_camera<double>(full_block_size, PERSPECTIVE);
 
-    std::cout << "GET_PIXEL_BUFFER" << std::endl;
     auto cuboid_pixel_buffer = Renderer::get_pixel_buffer(
         {CUBOID_RENDER_IMAGE_SIZE.first, CUBOID_RENDER_IMAGE_SIZE.second},
         camera, faces, full_faces,
@@ -86,18 +85,12 @@ auto Implementation::per_insitu_frame(
         std::pair{slice_indexes, full_block_size}, PERSPECTIVE);
 
     std::string file_name =
-        "3d_render_mpi_style_" + std::to_string(rank) + ".bmp";
-
-    std::cout << "WRITE_IMAGE" << std::endl;
+        "3d_render_mpi_style_" + std::to_string(num_ranks) + ".bmp";
 
     Writer::write_bmp(file_name, cuboid_pixel_buffer,
                       CUBOID_RENDER_IMAGE_SIZE.first,
                       CUBOID_RENDER_IMAGE_SIZE.second);
   }
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  std::cout << rank << " IS FINISHED" << std::endl;
 }
 
 auto Implementation::calculate_local_slice_index(std::size_t gbl_slice,
@@ -140,7 +133,7 @@ auto Implementation::convert_sliced_data_to_mesh(
     pixel_index++;
   }
 
-  Writer::write_bmp("smelly_farts" + uuid + ".bmp",
+  Writer::write_bmp("reconstructed_slice_" + uuid + ".bmp",
                     image_scaled.get_pixel_buffer(),
                     image_scaled.get_new_image_size().first,
                     image_scaled.get_new_image_size().second);

@@ -48,21 +48,15 @@ auto MpiUtils::distribute_data_across_ranks(
     -> PerRankDetails<T> {
   auto axis_decomp = MpiUtils::get_nslices_per_axis(num_ranks);
 
-  if (rank == 0) {
-    std::cout << "Axis Decomposition: " << axis_decomp[0] << ", "
-              << axis_decomp[1] << ", " << axis_decomp[2] << std::endl;
-  }
+  // if (rank == 0) {
+  //   std::cout << "Axis Decomposition: " << axis_decomp[0] << ", "
+  //             << axis_decomp[1] << ", " << axis_decomp[2] << std::endl;
+  // }
 
   auto offset_and_range =
       MpiUtils::get_range_from_rank(rank, axis_decomp, dimensions);
 
   std::vector<T> my_data{};
-
-  std::cout << "[DISTRIBUTE_DATA_ACROSS_RANKS] " << rank << ": ["
-            << offset_and_range[0] << ", " << offset_and_range[1] << ", "
-            << offset_and_range[2] << "], [" << offset_and_range[3] << ", "
-            << offset_and_range[4] << ", " << offset_and_range[5] << "]"
-            << std::endl;
 
   for (std::size_t z = offset_and_range[2];
        z < offset_and_range[2] + offset_and_range[5]; z++) {

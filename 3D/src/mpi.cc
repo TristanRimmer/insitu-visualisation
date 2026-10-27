@@ -61,9 +61,9 @@ auto MpiUtils::get_range_from_rank(int rank,
   index_in_each_axis[1] = rank_copy % axis_decomp[1];
   index_in_each_axis[0] = rank_copy / axis_decomp[1];
 
-  std::cout << "[RANGE FROM RANK] " << rank << ": " << index_in_each_axis[0]
-            << "*" << index_in_each_axis[1] << "*" << index_in_each_axis[2]
-            << std::endl;
+  // std::cout << "[RANGE FROM RANK] " << rank << ": " << index_in_each_axis[0]
+  //           << "*" << index_in_each_axis[1] << "*" << index_in_each_axis[2]
+  //           << std::endl;
 
   std::size_t dim_x_div = dimensions[0] / axis_decomp[0];
   std::size_t dim_y_div = dimensions[1] / axis_decomp[1];
@@ -75,9 +75,6 @@ auto MpiUtils::get_range_from_rank(int rank,
   std::size_t dim_z_mod = dimensions[2] % axis_decomp[2];
 
   auto offsets_and_ranges = std::array<std::size_t, 6>{};
-
-  std::cout << rank << index_in_each_axis[0] << index_in_each_axis[1]
-            << index_in_each_axis[2] << std::endl;
 
   // Offset/Starting point
   offsets_and_ranges[0] = index_in_each_axis[0] * dim_x_div;

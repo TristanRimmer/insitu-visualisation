@@ -34,8 +34,9 @@ int main(int argc, char *argv[]) {
       static_cast<std::size_t>(my_details.size[2]),
   };
 
-  std::array<std::size_t, 3> chosen_slices = {dims[0] - 1, dims[1] - 1,
-                                              dims[2] - 1};
+  std::array<std::size_t, 3> chosen_slices = {my_details.full_domain[0] - 1,
+                                              my_details.full_domain[1] - 1,
+                                              my_details.full_domain[2] - 1};
 
   auto tracker_x = Insitu::SliceTracker3D<double, 0>(dims, chosen_slices[0],
                                                      "x_slice", 1, 1);
@@ -43,56 +44,68 @@ int main(int argc, char *argv[]) {
                                                      "y_slice", 1, 1);
   auto tracker_z = Insitu::SliceTracker3D<double, 2>(dims, chosen_slices[2],
                                                      "z_slice", 1, 1);
-  auto colour_range = Colours::ColourRange<double>(
-      0.0, my_details.full_domain[0] * my_details.full_domain[1] *
-               my_details.full_domain[2]);
-
+  // auto colour_range = Colours::ColourRange<double>(
+  //     0.0, my_details.full_domain[0] * my_details.full_domain[1] *
+  //              my_details.full_domain[2]);
+  //
   auto &data = my_details.data;
+  //
+  // auto x_image_and_x_dims =
+  //     tracker_x.generate_graph(data.data(), colour_range).value();
+  // auto y_image_and_y_dims =
+  //     tracker_y.generate_graph(data.data(), colour_range).value();
+  // auto z_image_and_z_dims =
+  //     tracker_z.generate_graph(data.data(), colour_range).value();
+  //
+  // constexpr auto CUBOID_RENDER_IMAGE_SIZE =
+  //     std::pair<std::size_t, std::size_t>{1500, 1500};
+  // constexpr auto PERSPECTIVE = RasteriserComponents::CameraPerspective{
+  //     RasteriserComponents::CameraPerspectiveX::RIGHT,
+  //     RasteriserComponents::CameraPerspectiveY::DOWN,
+  //     RasteriserComponents::CameraPerspectiveZ::FRONT};
+  //
+  // auto faces = std::array<Renderer::Face<double>, 3>{
+  //     Renderer::get_faces_of_cuboid<double>(dims, chosen_slices,
+  //     PERSPECTIVE)};
+  // auto full_faces = Renderer::get_full_dims_as_faces<double>(dims,
+  // PERSPECTIVE);
+  //
+  // auto camera = Renderer::get_position_camera<double>(dims, PERSPECTIVE);
+  //
+  // auto cuboid_pixel_buffer = Renderer::get_pixel_buffer(
+  //     {CUBOID_RENDER_IMAGE_SIZE.first, CUBOID_RENDER_IMAGE_SIZE.second},
+  //     camera, faces, full_faces, {std::get<0>(z_image_and_z_dims),
+  //     std::get<0>(x_image_and_x_dims),
+  //      std::get<0>(y_image_and_y_dims)},
+  //     {std::get<1>(z_image_and_z_dims), std::get<1>(x_image_and_x_dims),
+  //      std::get<1>(y_image_and_y_dims)},
+  //     std::pair{chosen_slices, dims}, PERSPECTIVE);
 
-  auto x_image_and_x_dims =
-      tracker_x.generate_graph(data.data(), colour_range).value();
-  auto y_image_and_y_dims =
-      tracker_y.generate_graph(data.data(), colour_range).value();
-  auto z_image_and_z_dims =
-      tracker_z.generate_graph(data.data(), colour_range).value();
+  // std::string file_name = "3d_render_" + std::to_string(rank) + ".bmp";
+  //
+  // Writer::write_bmp(file_name, cuboid_pixel_buffer,
+  //                   CUBOID_RENDER_IMAGE_SIZE.first,
+  //                   CUBOID_RENDER_IMAGE_SIZE.second);
 
-  constexpr auto CUBOID_RENDER_IMAGE_SIZE =
-      std::pair<std::size_t, std::size_t>{1500, 1500};
-  constexpr auto PERSPECTIVE = RasteriserComponents::CameraPerspective{
-      RasteriserComponents::CameraPerspectiveX::RIGHT,
-      RasteriserComponents::CameraPerspectiveY::UP,
-      RasteriserComponents::CameraPerspectiveZ::FRONT};
+  // std::cout << "[DISPL DUMP] " << rank << " Displs is " <<
+  // my_details.displs[0]
+  //           << ", " << my_details.displs[1] << ", " << my_details.displs[2]
+  //           << std::endl;
 
-  auto faces = std::array<Renderer::Face<double>, 3>{
-      Renderer::get_faces_of_cuboid<double>(dims, chosen_slices, PERSPECTIVE)};
-  auto full_faces = Renderer::get_full_dims_as_faces<double>(dims, PERSPECTIVE);
-
-  auto camera = Renderer::get_position_camera<double>(dims, PERSPECTIVE);
-
-  auto cuboid_pixel_buffer = Renderer::get_pixel_buffer(
-      {CUBOID_RENDER_IMAGE_SIZE.first, CUBOID_RENDER_IMAGE_SIZE.second}, camera,
-      faces, full_faces,
-      {std::get<0>(z_image_and_z_dims), std::get<0>(x_image_and_x_dims),
-       std::get<0>(y_image_and_y_dims)},
-      {std::get<1>(z_image_and_z_dims), std::get<1>(x_image_and_x_dims),
-       std::get<1>(y_image_and_y_dims)},
-      std::pair{chosen_slices, dims}, PERSPECTIVE);
-
-  std::string file_name = "3d_render_" + std::to_string(rank) + ".bmp";
-
-  Writer::write_bmp(file_name, cuboid_pixel_buffer,
-                    CUBOID_RENDER_IMAGE_SIZE.first,
-                    CUBOID_RENDER_IMAGE_SIZE.second);
-
-  std::cout << "[DISPL DUMP] " << rank << " Displs is " << my_details.displs[0]
-            << ", " << my_details.displs[1] << ", " << my_details.displs[2]
-            << std::endl;
+  auto per_insitu_frame_start = std::chrono::steady_clock::now();
 
   Implementation::per_insitu_frame(
-      0, data.data(), {99, 99, 99}, dims, my_details.displs,
+      0, data.data(), chosen_slices, dims, my_details.displs,
       my_details.full_domain, rank, num_ranks, tracker_x, tracker_y, tracker_z);
 
-  std::cout << rank << "POO!!!!" << std::endl;
+  auto per_insitu_frame_end = std::chrono::steady_clock::now();
+
+  std::cout << "[Insitu Step (ms) For Rank " << rank << "]: "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(
+                   per_insitu_frame_end - per_insitu_frame_start)
+                   .count()
+            << std::endl;
+
   MPI_Finalize();
 }
 
