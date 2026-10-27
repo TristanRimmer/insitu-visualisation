@@ -58,10 +58,11 @@ auto MpiUtils::distribute_data_across_ranks(
 
   std::vector<T> my_data{};
 
-  std::cout << rank << ": [" << offset_and_range[0] << ", "
-            << offset_and_range[1] << ", " << offset_and_range[2] << "], ["
-            << offset_and_range[3] << ", " << offset_and_range[4] << ", "
-            << offset_and_range[5] << "]" << std::endl;
+  std::cout << "[DISTRIBUTE_DATA_ACROSS_RANKS] " << rank << ": ["
+            << offset_and_range[0] << ", " << offset_and_range[1] << ", "
+            << offset_and_range[2] << "], [" << offset_and_range[3] << ", "
+            << offset_and_range[4] << ", " << offset_and_range[5] << "]"
+            << std::endl;
 
   for (std::size_t z = offset_and_range[2];
        z < offset_and_range[2] + offset_and_range[5]; z++) {
@@ -80,7 +81,7 @@ auto MpiUtils::distribute_data_across_ranks(
   my_details.size = {offset_and_range[3], offset_and_range[4],
                      offset_and_range[5]};
   my_details.displs = {offset_and_range[0], offset_and_range[1],
-                       offset_and_range[1]};
+                       offset_and_range[2]};
   my_details.full_domain = dimensions;
   my_details.num_ranks = num_ranks;
 

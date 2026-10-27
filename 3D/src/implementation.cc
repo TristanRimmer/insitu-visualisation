@@ -20,7 +20,15 @@ auto Implementation::per_insitu_frame(
       y_tracker.get_2d_slice_iterator(raw_data)};
   auto z_domain_slicer = DomainSliceAccessor3D<double, 2>{
       z_tracker.get_2d_slice_iterator(raw_data)};
+  static auto colour_range = Colours::ColourRange<double>(0.0, 100 * 100 * 100);
 
+  if (rank == 0)
+    std::cout << "Z_SLICE" << std::endl;
+  auto slice_z = Implementation::communicate_slice_to_master_rank(
+      z_domain_slicer, slice_indexes, local_block_size, displacement,
+      full_block_size, rank, num_ranks);
+
+  MPI_Barrier(MPI_COMM_WORLD);
   if (rank == 0)
     std::cout << "X_SLICE" << std::endl;
   auto slice_x = Implementation::communicate_slice_to_master_rank(
@@ -34,29 +42,21 @@ auto Implementation::per_insitu_frame(
       y_domain_slicer, slice_indexes, local_block_size, displacement,
       full_block_size, rank, num_ranks);
   MPI_Barrier(MPI_COMM_WORLD);
-
-  if (rank == 0)
-    std::cout << "Z_SLICE" << std::endl;
-  auto slice_z = Implementation::communicate_slice_to_master_rank(
-      z_domain_slicer, slice_indexes, local_block_size, displacement,
-      full_block_size, rank, num_ranks);
-
-  MPI_Barrier(MPI_COMM_WORLD);
   if (rank == 0)
     std::cout << "BARRIER" << std::endl;
 
   if (rank == 0) {
-    static auto colour_range =
-        Colours::ColourRange<double>(0.0, 100 * 100 * 100);
-
     std::cout << "CONVERITNG TO MESH" << std::endl;
 
     auto mesh_x = Implementation::convert_sliced_data_to_mesh(
-        slice_x, x_domain_slicer.get_slice_dims(), 500, colour_range, 0);
+        slice_x, {full_block_size[2], full_block_size[1]}, 500, colour_range,
+        "x");
     auto mesh_y = Implementation::convert_sliced_data_to_mesh(
-        slice_x, x_domain_slicer.get_slice_dims(), 500, colour_range, 1);
+        slice_y, {full_block_size[0], full_block_size[2]}, 500, colour_range,
+        "y");
     auto mesh_z = Implementation::convert_sliced_data_to_mesh(
-        slice_x, x_domain_slicer.get_slice_dims(), 500, colour_range, 2);
+        slice_z, {full_block_size[0], full_block_size[1]}, 500, colour_range,
+        "z");
 
     constexpr auto CUBOID_RENDER_IMAGE_SIZE =
         std::pair<std::size_t, std::size_t>{1500, 1500};
@@ -110,16 +110,21 @@ auto Implementation::convert_sliced_data_to_mesh(
     const std::vector<double> &data,
     const std::pair<std::size_t, std::size_t> slice_dims,
     std::size_t hoz_output_slice,
-    const Colours::ColourRange<double> &colour_range, int uuid)
+    const Colours::ColourRange<double> &colour_range, std::string uuid)
     -> std::tuple<std::vector<std::uint8_t>,
                   std::pair<std::size_t, std::size_t>> {
-  std::cout << "HELLO!" << std::endl;
 
   std::size_t pixel_index = 0;
 
   auto image_scaled = Scaler::ImageScaler(slice_dims, 1);
 
-  std::cout << data.size() << std::endl;
+  // if (slice_dims.first * slice_dims.second == data.size()) {
+  //   std::cout << "POOPOO" << std::endl;
+  // } else {
+  //   std::cout << data.size() << " with " << slice_dims.first << "x"
+  //             << slice_dims.second << std::endl;
+  // }
+
   for (auto value : data) {
     auto relevant_colour = colour_range.get_colour(value);
 
@@ -130,7 +135,7 @@ auto Implementation::convert_sliced_data_to_mesh(
     pixel_index++;
   }
 
-  Writer::write_bmp("smelly_farts" + std::to_string(uuid) + ".bmp",
+  Writer::write_bmp("smelly_farts" + uuid + ".bmp",
                     image_scaled.get_pixel_buffer(),
                     image_scaled.get_new_image_size().first,
                     image_scaled.get_new_image_size().second);

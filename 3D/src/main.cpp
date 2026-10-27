@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &num_ranks);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  constexpr auto dimensions = std::array<std::size_t, 3>{500, 500, 500};
+  constexpr auto dimensions = std::array<std::size_t, 3>{100, 100, 100};
 
   MpiUtils::PerRankDetails<double> my_details =
       MpiUtils::distribute_data_across_ranks<double>(rank, num_ranks,
@@ -84,8 +84,12 @@ int main(int argc, char *argv[]) {
                     CUBOID_RENDER_IMAGE_SIZE.first,
                     CUBOID_RENDER_IMAGE_SIZE.second);
 
+  std::cout << "[DISPL DUMP] " << rank << " Displs is " << my_details.displs[0]
+            << ", " << my_details.displs[1] << ", " << my_details.displs[2]
+            << std::endl;
+
   Implementation::per_insitu_frame(
-      0, data.data(), chosen_slices, dims, my_details.displs,
+      0, data.data(), {99, 99, 99}, dims, my_details.displs,
       my_details.full_domain, rank, num_ranks, tracker_x, tracker_y, tracker_z);
 
   MPI_Finalize();

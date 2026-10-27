@@ -6,6 +6,7 @@
 #include <array>
 #include <cstdint>
 #include <mpi/mpi.h>
+#include <string>
 
 namespace Implementation {
 
@@ -35,7 +36,7 @@ auto convert_sliced_data_to_mesh(
     const std::vector<double> &data,
     const std::pair<std::size_t, std::size_t> slice_dims,
     std::size_t hoz_output_slice,
-    const Colours::ColourRange<double> &colour_range, int uuid)
+    const Colours::ColourRange<double> &colour_range, std::string uuid)
     -> std::tuple<std::vector<std::uint8_t>,
                   std::pair<std::size_t, std::size_t>>;
 /**
@@ -96,8 +97,10 @@ auto Implementation::communicate_slice_to_master_rank(
                                    ? num_rows
                                    : NUMBER_OF_ROW_BROADCASTS;
 
-  std::cout << "Rank " << rank << " believes there are "
+  std::cout << "[ROW BROADCASTS] " << "Rank " << rank << " believes there are "
             << NUMBER_OF_ROW_BROADCASTS << " BCasts" << std::endl;
+
+  MPI_Barrier(MPI_COMM_WORLD);
 
   if (rank == 0)
     std::cout << "HERE 1" << std::endl;
@@ -106,8 +109,8 @@ auto Implementation::communicate_slice_to_master_rank(
       (displacement[Axis] <= slice_indexes[Axis] &&
        slice_indexes[Axis] < displacement[Axis] + local_block_size[Axis]);
 
-  auto x_axis_index = (Axis == 0) ? 2 : (Axis == 1) ? 0 : 1;
-  auto y_axis_index = (Axis == 0 || Axis == 1) ? 1 : 2;
+  auto x_axis_index = (Axis == 0) ? 2 : (Axis == 2) ? 0 : 1;
+  auto y_axis_index = (Axis == 0 || Axis == 2) ? 1 : 2;
 
   auto local_full_x_axis = full_block_size[x_axis_index];
   auto local_full_y_axis = full_block_size[y_axis_index];
@@ -138,6 +141,10 @@ auto Implementation::communicate_slice_to_master_rank(
     std::cout << "HERE 3" << std::endl;
 
   for (int row_index = 0; row_index < NUMBER_OF_ROW_BROADCASTS; row_index++) {
+    // if (rank == 0)
+    //   std::cout << "[SIZE_OF_RECV_BUFFER] " << receive_buffer.size()
+    //             << std::endl;
+
     int current_displacement = 0;
 
     auto send_buffer = std::vector<double>{};
@@ -145,28 +152,29 @@ auto Implementation::communicate_slice_to_master_rank(
     bool row_index_has_exceeded_num_rows = row_index >= slice_dimensions.second;
 
     if (slice_lies_in_my_domain and not row_index_has_exceeded_num_rows) {
-      if (rank == 0)
-        std::cout << "Calcualting local slice " << row_index << std::endl;
+      // if (rank == 0)
+      //   std::cout << "Calcualting local slice " << row_index << std::endl;
 
       const auto local_slice_index =
           Implementation::calculate_local_slice_index(slice_indexes[Axis],
                                                       local_block_size[Axis]);
 
-      if (rank == 0)
-        std::cout << "Calcualting local slice completed " << row_index
-                  << std::endl;
+      // if (rank == 0)
+      // std::cout << "Calcualting local slice completed " << row_index
+      //           << std::endl;
       // local_displacement_y + row_index gets to the right y index on the 2d
       // slice recbuf. local_displacement_x gets you to the row
+      // WARN: I think this is majorly wrong
       current_displacement =
           (local_displacement_y + row_index) * local_full_x_axis +
           local_displacement_x;
 
-      if (rank == 1 && Axis == 1)
-        std::cout << current_displacement << ", " << local_slice_index << ": "
-                  << row_index << std::endl;
+      // if (rank == 1 && Axis == 1)
+      //   std::cout << "FLPFLPFLPFLPFLFP: " << current_displacement << ", "
+      //             << local_slice_index << ": " << row_index << std::endl;
       auto row_begin_and_end = accessor.get_row(row_index, local_slice_index);
-      if (rank == 1 && Axis == 1)
-        std::cout << "Iterating over row items " << row_index << std::endl;
+      // if (rank == 1 && Axis == 1)
+      //   std::cout << "Iterating over row items " << row_index << std::endl;
       for (auto it = row_begin_and_end.first; it != row_begin_and_end.second;
            ++it) {
         send_buffer.push_back(*it);
@@ -175,8 +183,8 @@ auto Implementation::communicate_slice_to_master_rank(
 
     int size_as_primitive_int = static_cast<int>(send_buffer.size());
 
-    if (rank == 0)
-      std::cout << "GATHERS BEGIN ON ROW " << row_index << std::endl;
+    // if (rank == 0)
+    // std::cout << "GATHERS BEGIN ON ROW " << row_index << std::endl;
 
     // Gather the contributions
     MPI_Gatherv(&size_as_primitive_int, 1, MPI_INT, reusable_recvcounts_ptr,
@@ -190,10 +198,17 @@ auto Implementation::communicate_slice_to_master_rank(
     if (rank == 0) {
       auto sum = 0;
 
-      for (auto val : reusable_recvcounts)
-        sum += val;
-
-      std::cout << sum << "values into " << receive_buffer.size() << std::endl;
+      std::string recvcounts = "[";
+      std::string displs = "[";
+      for (int i = 0; i < reusable_recvcounts.size(); i++) {
+        recvcounts = recvcounts + std::to_string(reusable_recvcounts[i]) + ", ";
+        displs = displs + std::to_string(reusable_displs[i]) + ", ";
+        sum += reusable_recvcounts[i];
+      }
+      // std::cout << "Recv counts : " + recvcounts << std::endl;
+      // std::cout << "Displs: " + displs << std::endl;
+      // std::cout << sum << "values into " << receive_buffer.size() <<
+      // std::endl;
     }
 
     MPI_Gatherv(send_buffer.data(), size_as_primitive_int, MPI_DOUBLE,

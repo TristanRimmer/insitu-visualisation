@@ -247,9 +247,10 @@ public:
       row_width = block_size[0];
     }
     // 500|500|500 -> 500, 499,0
-    std::cout << block_size[0] << "|" << block_size[1] << "|" << block_size[2]
-              << " -> " << row_width << ", " << slice << "," << slice_y
-              << std::endl;
+    // std::cout << block_size[0] << "|" << block_size[1] << "|" <<
+    // block_size[2]
+    //           << " -> " << row_width << ", " << slice << "," << slice_y
+    //           << std::endl;
 
     return std::pair{
         CustomIterator<T, Axis>(flattened_data, block_size, slice, 0, slice_y),
