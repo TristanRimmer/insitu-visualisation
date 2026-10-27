@@ -1,0 +1,64 @@
+1 - 
+2 - 
+3 - furthest out Z slice seems to be missing
+4 - 
+5 - 
+6 - furthest out Y slice seems tobe missing 
+7 - Z slice missing a chunk 
+8 - 
+9 - same as 3 
+10 - 
+11 - 
+12 - furthest X missing 
+13 - same as 7 
+14 - y slice missing a chunk 
+15 - same as 3 
+16 - 
+17 - 
+18 - X and Y missing outermost
+19 - 
+20 - 
+21 - outer Z, chunk of Y 
+22 - 
+23 - chunk of Z 
+24 - 
+25 - 
+26 - chunk of Y
+27 - 
+28 - chunk of X
+29 - chunk of Z
+30 - outer Y
+31 - 
+32 - 
+33 - outer Z
+34 - 
+35 - chunk of Y
+36 - outer X
+37 - chunk of Z
+38 - 
+39 - outer Z, chunk of Y
+40 - 
+41 - 
+42 - outer Y, chunk of X
+43 - chunk of Z
+44 - 
+45 - outer Z and Y
+46 - chunk of Y
+47 - outer Z
+48 - 
+49 - chunk of Z and Y
+50 - 
+51 - outer Z
+52 - chunk of Z
+53 - ENORMOUS chunk of Z - only shown colours are blue and green
+54 - outer Y and X
+55 - 
+56 - chunk of Z
+57 - outer Z
+58 - chunk of Y
+59 - hefty chunk of X
+60 - outer X
+61 - hefty chunk of Z
+62 - outer Z and Y, chunk of X
+63 - 
+64 - 
