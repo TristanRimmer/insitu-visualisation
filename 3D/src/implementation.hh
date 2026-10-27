@@ -104,12 +104,16 @@ auto Implementation::communicate_slice_to_master_rank(
 
   if (rank == 0)
     std::cout << "HERE 1" << std::endl;
+
   // Check once if the slice index is out of its displacement
   bool slice_lies_in_my_domain =
       (displacement[Axis] <= slice_indexes[Axis] &&
        slice_indexes[Axis] < displacement[Axis] + local_block_size[Axis]);
 
-  auto x_axis_index = (Axis == 0) ? 2 : (Axis == 2) ? 0 : 1;
+  std::cout << "[slice_lies_in_my_domain] " << rank << ": "
+            << slice_lies_in_my_domain << std::endl;
+
+  auto x_axis_index = (Axis == 0) ? 2 : 0;
   auto y_axis_index = (Axis == 0 || Axis == 2) ? 1 : 2;
 
   auto local_full_x_axis = full_block_size[x_axis_index];
@@ -139,6 +143,13 @@ auto Implementation::communicate_slice_to_master_rank(
 
   if (rank == 0)
     std::cout << "HERE 3" << std::endl;
+
+  if (Axis == 0) {
+    std::cout << "[PRE-ROW-BCAST-DATA-DUMP] " << rank << ": Local Disp: ["
+              << local_displacement_x << ", " << local_displacement_y
+              << "], Full: [" << local_full_x_axis << ", " << local_full_y_axis
+              << "]" << std::endl;
+  }
 
   for (int row_index = 0; row_index < NUMBER_OF_ROW_BROADCASTS; row_index++) {
     // if (rank == 0)

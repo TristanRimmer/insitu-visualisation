@@ -22,6 +22,9 @@ auto Implementation::per_insitu_frame(
       z_tracker.get_2d_slice_iterator(raw_data)};
   static auto colour_range = Colours::ColourRange<double>(0.0, 100 * 100 * 100);
 
+  std::cerr << rank << ":::::::-> " << displacement[0] << ", "
+            << displacement[1] << ", " << displacement[2] << std::endl;
+
   if (rank == 0)
     std::cout << "Z_SLICE" << std::endl;
   auto slice_z = Implementation::communicate_slice_to_master_rank(
@@ -90,9 +93,11 @@ auto Implementation::per_insitu_frame(
     Writer::write_bmp(file_name, cuboid_pixel_buffer,
                       CUBOID_RENDER_IMAGE_SIZE.first,
                       CUBOID_RENDER_IMAGE_SIZE.second);
-
-    std::cout << "FINISHED" << std::endl;
   }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  std::cout << rank << " IS FINISHED" << std::endl;
 }
 
 auto Implementation::calculate_local_slice_index(std::size_t gbl_slice,

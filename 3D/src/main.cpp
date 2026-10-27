@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
       static_cast<std::size_t>(my_details.size[2]),
   };
 
-  std::array<std::size_t, 3> chosen_slices = {dims[0] - 1, dims[1] - 2,
+  std::array<std::size_t, 3> chosen_slices = {dims[0] - 1, dims[1] - 1,
                                               dims[2] - 1};
 
   auto tracker_x = Insitu::SliceTracker3D<double, 0>(dims, chosen_slices[0],
@@ -92,6 +92,7 @@ int main(int argc, char *argv[]) {
       0, data.data(), {99, 99, 99}, dims, my_details.displs,
       my_details.full_domain, rank, num_ranks, tracker_x, tracker_y, tracker_z);
 
+  std::cout << rank << "POO!!!!" << std::endl;
   MPI_Finalize();
 }
 
