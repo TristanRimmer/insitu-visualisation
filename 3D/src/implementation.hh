@@ -39,6 +39,12 @@ auto convert_sliced_data_to_mesh(
     const Colours::ColourRange<double> &colour_range, std::string uuid)
     -> std::tuple<std::vector<std::uint8_t>,
                   std::pair<std::size_t, std::size_t>>;
+
+auto print_rank_data(const std::array<std::size_t, 3> &slice_indexes,
+                     const std::array<std::size_t, 3> &local_block_size,
+                     const std::array<std::size_t, 3> &displacement,
+                     const std::array<std::size_t, 3> &full_block_size,
+                     int rank, int num_ranks, int target_rank) -> void;
 /**
  * Before anything happens:
  * - Every rank needs to know how many times a row broadcast needs to happen
@@ -97,14 +103,8 @@ auto Implementation::communicate_slice_to_master_rank(
                                    ? num_rows
                                    : NUMBER_OF_ROW_BROADCASTS;
 
-  // std::cout << "[ROW BROADCASTS] " << "Rank " << rank << " believes there are
-  // "
-  //           << NUMBER_OF_ROW_BROADCASTS << " BCasts" << std::endl;
-
-  // MPI_Barrier(MPI_COMM_WORLD);
-
-  // if (rank == 0)
-  //   std::cout << "HERE 1" << std::endl;
+  // auto local_slice_index = Implementation::calculate_local_slice_index(
+  //     slice_indexes[Axis], local_block_size[Axis]);
 
   // Check once if the slice index is out of its displacement
   bool slice_lies_in_my_domain =
@@ -153,6 +153,8 @@ auto Implementation::communicate_slice_to_master_rank(
   //             << "]" << std::endl;
   // }
 
+  auto local_slice_index = slice_indexes[Axis] - displacement[Axis];
+
   for (int row_index = 0; row_index < NUMBER_OF_ROW_BROADCASTS; row_index++) {
     // if (rank == 0)
     //   std::cout << "[SIZE_OF_RECV_BUFFER] " << receive_buffer.size()
@@ -167,10 +169,6 @@ auto Implementation::communicate_slice_to_master_rank(
     if (slice_lies_in_my_domain and not row_index_has_exceeded_num_rows) {
       // if (rank == 0)
       //   std::cout << "Calcualting local slice " << row_index << std::endl;
-
-      const auto local_slice_index =
-          Implementation::calculate_local_slice_index(slice_indexes[Axis],
-                                                      local_block_size[Axis]);
 
       // if (rank == 0)
       // std::cout << "Calcualting local slice completed " << row_index

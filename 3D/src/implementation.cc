@@ -22,6 +22,9 @@ auto Implementation::per_insitu_frame(
       z_tracker.get_2d_slice_iterator(raw_data)};
   static auto colour_range = Colours::ColourRange<double>(0.0, 100 * 100 * 100);
 
+  Implementation::print_rank_data(slice_indexes, local_block_size, displacement,
+                                  full_block_size, rank, num_ranks, 60);
+
   // std::cerr << rank << ":::::::-> " << displacement[0] << ", "
   //           << displacement[1] << ", " << displacement[2] << std::endl;
 
@@ -139,4 +142,26 @@ auto Implementation::convert_sliced_data_to_mesh(
                     image_scaled.get_new_image_size().second);
 
   return std::make_tuple(image_scaled.get_pixel_buffer(), slice_dims);
+}
+
+auto Implementation::print_rank_data(
+    const std::array<std::size_t, 3> &slice_indexes,
+    const std::array<std::size_t, 3> &local_block_size,
+    const std::array<std::size_t, 3> &displacement,
+    const std::array<std::size_t, 3> &full_block_size, int rank, int num_ranks,
+    int target_rank) -> void {
+  if (rank != target_rank)
+    return;
+
+  auto print_vec3 = [](const std::array<std::size_t, 3> &vec,
+                       std::string tag) -> void {
+    std::cout << "[" << tag << "]: {" << vec[0] << ", " << vec[1] << ", "
+              << vec[2] << "}" << std::endl;
+  };
+
+  std::cout << "|=========| " << rank << " |=========|" << std::endl;
+  print_vec3(slice_indexes, "Slice Indexes");
+  print_vec3(local_block_size, "Local Block Size");
+  print_vec3(displacement, "Displacement");
+  print_vec3(full_block_size, "Global Block Size");
 }
