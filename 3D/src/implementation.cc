@@ -21,12 +21,6 @@ auto Implementation::per_insitu_frame(
   auto z_domain_slicer = DomainSliceAccessor3D<double, 2>{
       z_tracker.get_2d_slice_iterator(raw_data)};
 
-  static auto colour_range = Colours::ColourRange<double>(
-      0.0, full_block_size[0] * full_block_size[1] * full_block_size[2]);
-
-  Implementation::print_rank_data(slice_indexes, local_block_size, displacement,
-                                  full_block_size, rank, num_ranks, 60);
-
   auto slice_z = Implementation::communicate_slice_to_master_rank(
       z_domain_slicer, slice_indexes, local_block_size, displacement,
       full_block_size, rank, num_ranks);
@@ -38,16 +32,6 @@ auto Implementation::per_insitu_frame(
       full_block_size, rank, num_ranks);
 
   if (rank == 0) {
-    auto mesh_x = Implementation::convert_sliced_data_to_mesh(
-        slice_x, {full_block_size[2], full_block_size[1]}, 500, colour_range,
-        "x");
-    auto mesh_y = Implementation::convert_sliced_data_to_mesh(
-        slice_y, {full_block_size[0], full_block_size[2]}, 500, colour_range,
-        "y");
-    auto mesh_z = Implementation::convert_sliced_data_to_mesh(
-        slice_z, {full_block_size[0], full_block_size[1]}, 500, colour_range,
-        "z");
-
     constexpr auto CUBOID_RENDER_IMAGE_SIZE =
         std::pair<std::size_t, std::size_t>{1500, 1500};
     constexpr auto PERSPECTIVE = RasteriserComponents::CameraPerspective{
@@ -55,28 +39,16 @@ auto Implementation::per_insitu_frame(
         RasteriserComponents::CameraPerspectiveY::UP,
         RasteriserComponents::CameraPerspectiveZ::FRONT};
 
-    auto faces = std::array<Renderer::Face<double>, 3>{
-        Renderer::get_faces_of_cuboid<double>(full_block_size, slice_indexes,
-                                              PERSPECTIVE)};
-    auto full_faces =
-        Renderer::get_full_dims_as_faces<double>(full_block_size, PERSPECTIVE);
+    auto render_data = Implementation::CuboidRenderMetadata<double>(
+        CUBOID_RENDER_IMAGE_SIZE.first, CUBOID_RENDER_IMAGE_SIZE.second,
+        PERSPECTIVE, full_block_size, slice_indexes, "3d_cuboid_render", 0.0,
+        full_block_size[0] * full_block_size[1] * full_block_size[2]);
 
-    auto camera =
-        Renderer::get_position_camera<double>(full_block_size, PERSPECTIVE);
-
-    auto cuboid_pixel_buffer = Renderer::get_pixel_buffer(
-        {CUBOID_RENDER_IMAGE_SIZE.first, CUBOID_RENDER_IMAGE_SIZE.second},
-        camera, faces, full_faces,
-        {std::get<0>(mesh_z), std::get<0>(mesh_x), std::get<0>(mesh_y)},
-        {std::get<1>(mesh_z), std::get<1>(mesh_x), std::get<1>(mesh_y)},
-        std::pair{slice_indexes, full_block_size}, PERSPECTIVE);
-
-    std::string file_name =
-        "3d_render_mpi_style_" + std::to_string(num_ranks) + ".bmp";
-
-    Writer::write_bmp(file_name, cuboid_pixel_buffer,
-                      CUBOID_RENDER_IMAGE_SIZE.first,
-                      CUBOID_RENDER_IMAGE_SIZE.second);
+    render_data.render_image(slice_x, slice_y, slice_z,
+                             std::pair{full_block_size[2], full_block_size[1]},
+                             std::pair{full_block_size[0], full_block_size[2]},
+                             std::pair{full_block_size[0], full_block_size[1]},
+                             true);
   }
 }
 

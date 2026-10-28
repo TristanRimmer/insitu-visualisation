@@ -2,6 +2,7 @@
 #define INSITU_VISUALISATION_3D_IMPLEMENTATION_HH
 
 #include "3D_slice_tracker.hh"
+#include "3d_cuboid_renderer.hh"
 #include "bmp.hh"
 #include <array>
 #include <cstdint>
@@ -9,6 +10,98 @@
 #include <string>
 
 namespace Implementation {
+
+template <typename T> class CuboidRenderMetadata {
+public:
+  CuboidRenderMetadata(std::size_t output_x, std::size_t output_y,
+                       RasteriserComponents::CameraPerspective perspective,
+                       std::array<std::size_t, 3> full_block_size,
+                       std::array<std::size_t, 3> slice_indexes,
+                       std::string file_name, T minimum_colour_value,
+                       T maximum_colour_value)
+      : image_dimensions(output_x, output_y), camera_perspective(perspective),
+        file_name(file_name), slice_indexes(slice_indexes),
+        full_block_dims(full_block_size),
+        sliced_faces(Renderer::get_faces_of_cuboid<T>(
+            full_block_size, slice_indexes, perspective)),
+        full_dim_faces(
+            Renderer::get_full_dims_as_faces<T>(full_block_size, perspective)),
+        camera(Renderer::get_position_camera<T>(full_block_size, perspective)),
+        colour_range(Colours::ColourRange<T>(minimum_colour_value,
+                                             maximum_colour_value)) {}
+
+  auto render_image(const std::vector<T> &x_slice,
+                    const std::vector<T> &y_slice,
+                    const std::vector<T> &z_slice,
+                    std::pair<std::size_t, std::size_t> x_dims,
+                    std::pair<std::size_t, std::size_t> y_dims,
+                    std::pair<std::size_t, std::size_t> z_dims,
+                    bool print_2d_images) -> void {
+    // Convert slices to meshes
+    auto mesh_x =
+        this->convert_slice_to_mesh(x_slice, x_dims, print_2d_images, "x");
+    auto mesh_y =
+        this->convert_slice_to_mesh(y_slice, y_dims, print_2d_images, "y");
+    auto mesh_z =
+        this->convert_slice_to_mesh(z_slice, z_dims, print_2d_images, "z");
+
+    // Generate the pixel buffer for the cuboid
+    auto cuboid_buffer = Renderer::get_pixel_buffer(
+        this->image_dimensions, this->camera, this->sliced_faces,
+        this->full_dim_faces,
+        // WARN: Not 100% sure why its ZXY rather than XYZ, should probably
+        // remind myself
+        {std::get<0>(mesh_z), std::get<0>(mesh_x), std::get<0>(mesh_y)},
+        {std::get<1>(mesh_z), std::get<1>(mesh_x), std::get<1>(mesh_y)},
+        {this->slice_indexes, this->full_block_dims}, this->camera_perspective);
+
+    Writer::write_bmp(this->file_name + ".bmp", cuboid_buffer,
+                      this->image_dimensions.first,
+                      this->image_dimensions.second);
+  }
+
+private:
+  auto
+  convert_slice_to_mesh(const std::vector<T> &data,
+                        std::pair<std::size_t, std::size_t> slice_dimensions,
+                        bool print_reconstructed_slice = false,
+                        std::string uuid = "")
+      -> std::tuple<std::vector<std::uint8_t>,
+                    std::pair<std::size_t, std::size_t>> {
+    std::size_t pixel_index = 0;
+    auto image_scaled = Scaler::ImageScaler(slice_dimensions, 1);
+
+    for (auto v : data) {
+      auto relevant_colour = colour_range.get_colour(v);
+      image_scaled.assign_scaled_pixel_colour(
+          pixel_index,
+          // BMP takes BGR
+          {relevant_colour[2], relevant_colour[1], relevant_colour[0]});
+
+      pixel_index++;
+    }
+
+    if (print_reconstructed_slice) {
+      Writer::write_bmp("reconstructed_slice_" + uuid + ".bmp",
+                        image_scaled.get_pixel_buffer(),
+                        image_scaled.get_new_image_size().first,
+                        image_scaled.get_new_image_size().second);
+    }
+
+    return std::make_tuple(image_scaled.get_pixel_buffer(), slice_dimensions);
+  }
+
+private:
+  std::pair<std::size_t, std::size_t> image_dimensions;
+  RasteriserComponents::CameraPerspective camera_perspective;
+  std::string file_name;
+  std::array<std::size_t, 3> slice_indexes;
+  std::array<std::size_t, 3> full_block_dims;
+  std::array<Renderer::Face<T>, 3> sliced_faces;
+  std::array<Renderer::Face<T>, 3> full_dim_faces;
+  RasteriserComponents::Camera<T> camera;
+  Colours::ColourRange<T> colour_range;
+};
 
 /**
  * "per_insitu_frame"
