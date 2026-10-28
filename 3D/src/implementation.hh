@@ -30,13 +30,13 @@ public:
         colour_range(Colours::ColourRange<T>(minimum_colour_value,
                                              maximum_colour_value)) {}
 
-  auto render_image(const std::vector<T> &x_slice,
-                    const std::vector<T> &y_slice,
-                    const std::vector<T> &z_slice,
-                    std::pair<std::size_t, std::size_t> x_dims,
-                    std::pair<std::size_t, std::size_t> y_dims,
-                    std::pair<std::size_t, std::size_t> z_dims,
-                    bool print_2d_images) -> void {
+  auto generate_buffer(const std::vector<T> &x_slice,
+                       const std::vector<T> &y_slice,
+                       const std::vector<T> &z_slice,
+                       std::pair<std::size_t, std::size_t> x_dims,
+                       std::pair<std::size_t, std::size_t> y_dims,
+                       std::pair<std::size_t, std::size_t> z_dims,
+                       bool print_2d_images) -> std::vector<uint8_t> {
     // Convert slices to meshes
     auto mesh_x =
         this->convert_slice_to_mesh(x_slice, x_dims, print_2d_images, "x");
@@ -55,9 +55,7 @@ public:
         {std::get<1>(mesh_z), std::get<1>(mesh_x), std::get<1>(mesh_y)},
         {this->slice_indexes, this->full_block_dims}, this->camera_perspective);
 
-    Writer::write_bmp(this->file_name + ".bmp", cuboid_buffer,
-                      this->image_dimensions.first,
-                      this->image_dimensions.second);
+    return cuboid_buffer;
   }
 
 private:
@@ -125,8 +123,9 @@ auto per_insitu_frame(int simulation_iter, double *raw_data,
                       int rank, int num_ranks,
                       Insitu::SliceTracker3D<double, 0> &x_tracker,
                       Insitu::SliceTracker3D<double, 1> &y_tracker,
-                      Insitu::SliceTracker3D<double, 2> &z_tracker) -> void;
-
+                      Insitu::SliceTracker3D<double, 2> &z_tracker,
+                      RasteriserComponents::CameraPerspective perspective)
+    -> void;
 /**
  *
  * "communicate_slice_to_master_rank"

@@ -1,6 +1,7 @@
 #include "implementation.hh"
 #include "3D_slice_tracker.hh"
 #include "3d_cuboid_renderer.hh"
+#include "bmp.hh"
 
 #include <mpi/mpi.h>
 
@@ -12,7 +13,8 @@ auto Implementation::per_insitu_frame(
     const std::array<std::size_t, 3> &full_block_size, int rank, int num_ranks,
     Insitu::SliceTracker3D<double, 0> &x_tracker,
     Insitu::SliceTracker3D<double, 1> &y_tracker,
-    Insitu::SliceTracker3D<double, 2> &z_tracker) -> void {
+    Insitu::SliceTracker3D<double, 2> &z_tracker,
+    RasteriserComponents::CameraPerspective perspective) -> void {
 
   auto x_domain_slicer = DomainSliceAccessor3D<double, 0>{
       x_tracker.get_2d_slice_iterator(raw_data)};
@@ -34,21 +36,21 @@ auto Implementation::per_insitu_frame(
   if (rank == 0) {
     constexpr auto CUBOID_RENDER_IMAGE_SIZE =
         std::pair<std::size_t, std::size_t>{1500, 1500};
-    constexpr auto PERSPECTIVE = RasteriserComponents::CameraPerspective{
-        RasteriserComponents::CameraPerspectiveX::RIGHT,
-        RasteriserComponents::CameraPerspectiveY::UP,
-        RasteriserComponents::CameraPerspectiveZ::FRONT};
 
     auto render_data = Implementation::CuboidRenderMetadata<double>(
         CUBOID_RENDER_IMAGE_SIZE.first, CUBOID_RENDER_IMAGE_SIZE.second,
-        PERSPECTIVE, full_block_size, slice_indexes, "3d_cuboid_render", 0.0,
+        perspective, full_block_size, slice_indexes, "3d_cuboid_render", 0.0,
         full_block_size[0] * full_block_size[1] * full_block_size[2]);
 
-    render_data.render_image(slice_x, slice_y, slice_z,
-                             std::pair{full_block_size[2], full_block_size[1]},
-                             std::pair{full_block_size[0], full_block_size[2]},
-                             std::pair{full_block_size[0], full_block_size[1]},
-                             true);
+    auto buffer = render_data.generate_buffer(
+        slice_x, slice_y, slice_z,
+        std::pair{full_block_size[2], full_block_size[1]},
+        std::pair{full_block_size[0], full_block_size[2]},
+        std::pair{full_block_size[0], full_block_size[1]}, true);
+
+    Writer::write_bmp("3d_cuboid_buffer.bmp", buffer,
+                      CUBOID_RENDER_IMAGE_SIZE.first,
+                      CUBOID_RENDER_IMAGE_SIZE.second);
   }
 }
 
