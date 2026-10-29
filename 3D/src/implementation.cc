@@ -46,7 +46,7 @@ auto Implementation::per_insitu_frame(
         slice_x, slice_y, slice_z,
         std::pair{full_block_size[2], full_block_size[1]},
         std::pair{full_block_size[0], full_block_size[2]},
-        std::pair{full_block_size[0], full_block_size[1]}, true);
+        std::pair{full_block_size[0], full_block_size[1]}, false);
 
     Writer::write_bmp("3d_cuboid_buffer.bmp", buffer,
                       CUBOID_RENDER_IMAGE_SIZE.first,

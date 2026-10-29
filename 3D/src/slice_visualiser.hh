@@ -77,12 +77,12 @@ const static auto InputToBehaviourMapper =
            data.update_slice(0, true);
            data.state_changed = true;
          }},
-        {SDLK_PAGEUP,
+        {SDLK_RIGHTBRACKET,
          [](RunTimeVariantData &data) {
            data.update_slice(2, true);
            data.state_changed = true;
          }},
-        {SDLK_PAGEDOWN,
+        {SDLK_LEFTBRACKET,
          [](RunTimeVariantData &data) {
            data.update_slice(2, false);
            data.state_changed = true;

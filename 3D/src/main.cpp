@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
   if (rank == 0) {
     auto rand_device = std::random_device{};
     auto rand_gen = std::mt19937{rand_device()};
-    auto distribution = std::uniform_int_distribution<std::size_t>(500, 750);
+    auto distribution = std::uniform_int_distribution<std::size_t>(100, 250);
     dimensions = {distribution(rand_gen), distribution(rand_gen),
                   distribution(rand_gen)};
   }
