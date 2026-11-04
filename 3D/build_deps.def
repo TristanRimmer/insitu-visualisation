@@ -1,0 +1,26 @@
+Bootstrap: docker
+From: ubuntu:noble
+
+%post
+    # TODO: Add MPI requirements
+
+    # Update system
+    apt update -y && apt upgrade -y
+
+    # General build requirements
+    apt install -y lsb-release wget ninja-build gcovr git cmake \
+                   software-properties-common gnupg build-essential bear curl
+
+    # New C++23 requirement
+    apt install -y cpp-14 libstdc++-14-dev libc++-dev libc++abi-dev
+    
+    apt install -y g++-14
+
+    # MPI
+    apt install mpich -y
+
+%environment
+    export CXX=g++-14
+
+%runscript
+    exec "$@"
