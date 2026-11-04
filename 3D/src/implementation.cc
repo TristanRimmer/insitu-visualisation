@@ -10,7 +10,8 @@ auto Implementation::per_insitu_frame(
     const std::array<std::size_t, 3> &slice_indexes,
     const std::array<std::size_t, 3> &local_block_size,
     const std::array<std::size_t, 3> &displacement,
-    const std::array<std::size_t, 3> &full_block_size, int rank, int num_ranks,
+    const std::array<std::size_t, 3> &full_block_size,
+    const std::array<int, 6> &halos, int rank, int num_ranks,
     Insitu::SliceTracker3D<double, 0> &x_tracker,
     Insitu::SliceTracker3D<double, 1> &y_tracker,
     Insitu::SliceTracker3D<double, 2> &z_tracker,
@@ -25,13 +26,13 @@ auto Implementation::per_insitu_frame(
 
   auto slice_z = Implementation::communicate_slice_to_master_rank(
       z_domain_slicer, slice_indexes, local_block_size, displacement,
-      full_block_size, rank, num_ranks);
+      full_block_size, halos, rank, num_ranks);
   auto slice_x = Implementation::communicate_slice_to_master_rank(
       x_domain_slicer, slice_indexes, local_block_size, displacement,
-      full_block_size, rank, num_ranks);
+      full_block_size, halos, rank, num_ranks);
   auto slice_y = Implementation::communicate_slice_to_master_rank(
       y_domain_slicer, slice_indexes, local_block_size, displacement,
-      full_block_size, rank, num_ranks);
+      full_block_size, halos, rank, num_ranks);
 
   if (rank == 0) {
     constexpr auto CUBOID_RENDER_IMAGE_SIZE =

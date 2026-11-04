@@ -1,4 +1,4 @@
-#include "mpi.hh"
+#include "mpi_data_setup.hh"
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
@@ -48,10 +48,9 @@ auto MpiUtils::get_nslices_per_axis(int num_ranks)
   return axis_slices;
 }
 
-auto MpiUtils::get_range_from_rank(int rank,
-                                   std::array<std::size_t, 3> axis_decomp,
-                                   std::array<std::size_t, 3> dimensions)
-    -> std::array<std::size_t, 6> {
+auto MpiUtils::detail::get_index_in_each_axis(
+    int rank, const std::array<std::size_t, 3> &axis_decomp)
+    -> std::array<int, 3> {
   auto index_in_each_axis = std::array<int, 3>{};
 
   std::size_t rank_copy = rank;
@@ -61,9 +60,50 @@ auto MpiUtils::get_range_from_rank(int rank,
   index_in_each_axis[1] = rank_copy % axis_decomp[1];
   index_in_each_axis[0] = rank_copy / axis_decomp[1];
 
-  // std::cout << "[RANGE FROM RANK] " << rank << ": " << index_in_each_axis[0]
-  //           << "*" << index_in_each_axis[1] << "*" << index_in_each_axis[2]
-  //           << std::endl;
+  return index_in_each_axis;
+}
+
+auto MpiUtils::get_halos_from_rank(
+    int rank, const std::array<std::size_t, 3> &axis_decomp)
+    -> std::array<int, 6> {
+  auto index_in_each_axis = detail::get_index_in_each_axis(rank, axis_decomp);
+  auto halos = std::array<int, 6>{};
+
+  constexpr auto lower_halo = -3;
+  constexpr auto upper_halo = 3;
+  static_assert(lower_halo <= 0 && upper_halo >= 0);
+
+  for (int axis = 0; axis < 3; axis++) {
+    auto decomp_size = axis_decomp[axis];
+    auto curr_index = index_in_each_axis[axis];
+
+    bool lower_sorted = false;
+    bool upper_sorted = false;
+
+    if (curr_index == 0) {
+      lower_sorted = true;
+      halos[(2 * axis) + 0] = 0;
+    }
+    if (curr_index == decomp_size - 1) {
+      upper_sorted = true;
+      halos[(2 * axis) + 1] = 0;
+    }
+
+    if (!lower_sorted)
+      halos[(2 * axis) + 0] = lower_halo;
+
+    if (!upper_sorted)
+      halos[(2 * axis) + 1] = upper_halo;
+  }
+
+  return halos;
+}
+
+auto MpiUtils::get_range_from_rank(int rank,
+                                   std::array<std::size_t, 3> axis_decomp,
+                                   std::array<std::size_t, 3> dimensions)
+    -> std::array<std::size_t, 6> {
+  auto index_in_each_axis = detail::get_index_in_each_axis(rank, axis_decomp);
 
   std::size_t dim_x_div = dimensions[0] / axis_decomp[0];
   std::size_t dim_y_div = dimensions[1] / axis_decomp[1];

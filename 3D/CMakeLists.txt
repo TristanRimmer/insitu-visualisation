@@ -11,7 +11,7 @@ find_package(MPI COMPONENTS CXX)
 add_executable(InsituVisualisationWithMPI
     src/main.cpp
     src/bmp.cc
-    src/mpi.cc
+    src/mpi_data_setup.cc
     src/implementation.cc
 )
 

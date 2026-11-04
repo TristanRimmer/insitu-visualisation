@@ -238,24 +238,13 @@ public:
 
   auto get_row(std::size_t slice_y, std::size_t slice)
       -> std::pair<CustomIterator<T, Axis>, CustomIterator<T, Axis>> {
-    auto row_width = 0;
-    if constexpr (Axis == 0) {
-      row_width = block_size[0];
-    } else if constexpr (Axis == 1) {
-      row_width = block_size[2];
-    } else if constexpr (Axis == 2) {
-      row_width = block_size[0];
-    }
-    // 500|500|500 -> 500, 499,0
-    // std::cout << block_size[0] << "|" << block_size[1] << "|" <<
-    // block_size[2]
-    //           << " -> " << row_width << ", " << slice << "," << slice_y
-    //           << std::endl;
-
     return std::pair{
         CustomIterator<T, Axis>(flattened_data, block_size, slice, 0, slice_y),
         CustomIterator<T, Axis>(flattened_data, block_size, slice, 0,
                                 slice_y + 1)};
+  }
+  auto get_block_dims() const -> const std::array<std::size_t, 3> & {
+    return block_size;
   }
 
   auto get_slice_dims() const -> std::pair<std::size_t, std::size_t> {

@@ -5,6 +5,7 @@
 #include "3d_cuboid_renderer.hh"
 #include "bmp.hh"
 #include <array>
+#include <cassert>
 #include <cstdint>
 #include <mpi/mpi.h>
 #include <string>
@@ -120,7 +121,7 @@ auto per_insitu_frame(int simulation_iter, double *raw_data,
                       const std::array<std::size_t, 3> &local_block_size,
                       const std::array<std::size_t, 3> &displacement,
                       const std::array<std::size_t, 3> &full_block_size,
-                      int rank, int num_ranks,
+                      const std::array<int, 6> &halos, int rank, int num_ranks,
                       Insitu::SliceTracker3D<double, 0> &x_tracker,
                       Insitu::SliceTracker3D<double, 1> &y_tracker,
                       Insitu::SliceTracker3D<double, 2> &z_tracker,
@@ -148,7 +149,8 @@ auto communicate_slice_to_master_rank(
     const std::array<std::size_t, 3> &slice_indexes,
     const std::array<std::size_t, 3> &local_block_size,
     const std::array<std::size_t, 3> &displacement,
-    const std::array<std::size_t, 3> &full_block_size, int rank, int num_ranks)
+    const std::array<std::size_t, 3> &full_block_size,
+    const std::array<int, 6> &halos, int rank, int num_ranks)
     -> std::vector<double>;
 
 /**
@@ -185,9 +187,17 @@ auto Implementation::communicate_slice_to_master_rank(
     const std::array<std::size_t, 3> &slice_indexes,
     const std::array<std::size_t, 3> &local_block_size,
     const std::array<std::size_t, 3> &displacement,
-    const std::array<std::size_t, 3> &full_block_size, int rank, int num_ranks)
+    const std::array<std::size_t, 3> &full_block_size,
+    const std::array<int, 6> &halos, int rank, int num_ranks)
     -> std::vector<double> {
   static_assert(Axis == 0 || Axis == 1 || Axis == 2);
+
+  // Treat the 'x' and 'y' index/axis internally as the X/Y of the 2D slice, not
+  // referring to the block
+  const auto x_axis_index = (Axis == 0) ? 2 : 0;
+  const auto y_axis_index = (Axis == 0 || Axis == 2) ? 1 : 2;
+  const auto lower_halo_y = std::abs(halos[2 * y_axis_index]);
+  const auto upper_halo_y = std::abs(halos[2 * y_axis_index + 1]);
 
   // Some reusable components for gathers where each rank sends 1 item to index
   // [rank]
@@ -198,7 +208,8 @@ auto Implementation::communicate_slice_to_master_rank(
     ranks_send_to_itself_index[r_i] = r_i;
   auto row_counts_from_all_ranks = std::vector<int>(num_ranks, 0);
 
-  const auto local_row_count = static_cast<int>(slice_dimensions.second);
+  const auto local_row_count =
+      static_cast<int>(slice_dimensions.second) - lower_halo_y - upper_halo_y;
 
   // All ranks now know the max amount of row gathers to do
   MPI_Allgatherv(&local_row_count, 1, MPI_INT, row_counts_from_all_ranks.data(),
@@ -213,12 +224,8 @@ auto Implementation::communicate_slice_to_master_rank(
   // Check once if the slice index is out of its displacement
   const bool slice_lies_in_my_domain =
       (displacement[Axis] <= slice_indexes[Axis] &&
-       slice_indexes[Axis] < displacement[Axis] + local_block_size[Axis]);
-
-  // Treat the 'x' and 'y' index/axis internally as the X/Y of the 2D slice, not
-  // referring to the block
-  auto x_axis_index = (Axis == 0) ? 2 : 0;
-  auto y_axis_index = (Axis == 0 || Axis == 2) ? 1 : 2;
+       slice_indexes[Axis] < displacement[Axis] + local_block_size[Axis] +
+                                 halos[2 * Axis] - halos[2 * Axis + 1]);
 
   auto full_slice_x_axis = full_block_size[x_axis_index];
   auto full_slice_y_axis = full_block_size[y_axis_index];
@@ -240,12 +247,16 @@ auto Implementation::communicate_slice_to_master_rank(
   auto *displs_ptr = (rank != 0) ? nullptr : reusable_displs.data();
 
   // Get the slice in the current block rather than the full block dimensions
-  const auto local_slice_index = slice_indexes[Axis] - displacement[Axis];
+  const auto local_slice_index =
+      slice_indexes[Axis] - displacement[Axis] + std::abs(halos[2 * Axis]);
 
   for (int row_index = 0; row_index < number_of_row_gathers; row_index++) {
     int current_displacement = 0;
     auto send_buffer = std::vector<double>{};
-    bool row_index_has_exceeded_num_rows = row_index >= slice_dimensions.second;
+    bool row_index_has_exceeded_num_rows = row_index >= local_row_count;
+
+    int displaced_row = row_index + lower_halo_y;
+    int size_as_primitive_int = 0;
 
     // Only needs to add row data to the send buffer if it contains the global
     // slice and it still has rows to submit
@@ -254,15 +265,19 @@ auto Implementation::communicate_slice_to_master_rank(
           (slice_displacement_y + row_index) * full_slice_x_axis +
           slice_displacement_x;
 
-      auto row_begin_and_end = accessor.get_row(row_index, local_slice_index);
+      auto row_begin_and_end =
+          accessor.get_row(displaced_row, local_slice_index);
 
       for (auto it = row_begin_and_end.first; it != row_begin_and_end.second;
            ++it) {
-        send_buffer.push_back(*it);
+        auto value = *it;
+        send_buffer.push_back(value);
       }
-    }
 
-    int size_as_primitive_int = static_cast<int>(send_buffer.size());
+      size_as_primitive_int = static_cast<int>(send_buffer.size()) -
+                              std::abs(halos[(x_axis_index * 2) + 0]) -
+                              halos[(x_axis_index * 2) + 1];
+    }
 
     // Gather the contributions
     MPI_Gatherv(&size_as_primitive_int, 1, MPI_INT, recvcounts_ptr,
@@ -273,7 +288,13 @@ auto Implementation::communicate_slice_to_master_rank(
                 ranks_sends_one_item.data(), ranks_send_to_itself_index.data(),
                 MPI_INT, 0, MPI_COMM_WORLD);
     // Buffer
-    MPI_Gatherv(send_buffer.data(), size_as_primitive_int, MPI_DOUBLE,
+    auto *send_buffer_offsetted = send_buffer.data();
+
+    if (slice_lies_in_my_domain && !row_index_has_exceeded_num_rows)
+      send_buffer_offsetted =
+          send_buffer.data() + std::abs(halos[(x_axis_index * 2)]);
+
+    MPI_Gatherv(send_buffer_offsetted, size_as_primitive_int, MPI_DOUBLE,
                 receive_buffer_ptr, recvcounts_ptr, displs_ptr, MPI_DOUBLE, 0,
                 MPI_COMM_WORLD);
   }

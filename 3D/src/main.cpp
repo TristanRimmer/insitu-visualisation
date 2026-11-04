@@ -1,6 +1,6 @@
 #include "3D_slice_tracker.hh"
 #include "implementation.hh"
-#include "mpi.hh"
+#include "mpi_data_setup.hh"
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -23,16 +23,25 @@ int main(int argc, char *argv[]) {
   if (rank == 0) {
     auto rand_device = std::random_device{};
     auto rand_gen = std::mt19937{rand_device()};
-    auto distribution = std::uniform_int_distribution<std::size_t>(1000, 1000);
+    auto distribution = std::uniform_int_distribution<std::size_t>(100, 100);
     dimensions = {distribution(rand_gen), distribution(rand_gen),
                   distribution(rand_gen)};
   }
 
   MPI_Bcast(dimensions.data(), 3, MPI_INT64_T, 0, MPI_COMM_WORLD);
 
+  auto data_generation_timer_start = std::chrono::steady_clock::now();
+
   MpiUtils::PerRankDetails<double> my_details =
       MpiUtils::distribute_data_across_ranks<double>(rank, num_ranks,
                                                      dimensions);
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  if (rank == 0)
+    std::cout << "Per Rank Details Gathered" << std::endl;
+
+  auto data_generation_timer_end = std::chrono::steady_clock::now();
 
   std::array<std::size_t, 3> dims = {
       static_cast<std::size_t>(my_details.size[0]),
@@ -56,12 +65,19 @@ int main(int argc, char *argv[]) {
 
   Implementation::per_insitu_frame(
       0, data.data(), chosen_slices, dims, my_details.displs,
-      my_details.full_domain, rank, num_ranks, tracker_x, tracker_y, tracker_z,
+      my_details.full_domain, my_details.halos, rank, num_ranks, tracker_x,
+      tracker_y, tracker_z,
       {RasteriserComponents::CameraPerspectiveX::RIGHT,
        RasteriserComponents::CameraPerspectiveY::UP,
        RasteriserComponents::CameraPerspectiveZ::FRONT});
 
   auto per_insitu_frame_end = std::chrono::steady_clock::now();
+
+  std::cout << "[Data Generation (ms) For Rank " << rank << "]: "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(
+                   data_generation_timer_end - data_generation_timer_start)
+                   .count()
+            << std::endl;
 
   std::cout << "[Insitu Step (ms) For Rank " << rank << "]: "
             << std::chrono::duration_cast<std::chrono::milliseconds>(
